@@ -48,7 +48,10 @@
           <div id="gold-particles-main"></div>
           <!-- ?쒖냼????-->
           <div id="tiny-god" title="Tiny God">
-            <div class="tiny-god-sprite"><span class="ui-icon icon-star" aria-hidden="true"></span></div>
+            <div class="tiny-god-sprite">
+              <img id="tiny-god-img" class="tiny-god-img" src="assets/ui/misc/tiny_god.png" alt="작은 신" draggable="false">
+              <span class="ui-icon icon-star tiny-god-fallback" aria-hidden="true"></span>
+            </div>
           </div>
           <!-- 硫붿씤 罹먮┃??-->
           <div id="main-character" onclick="Game.tapCharacter()">
@@ -110,6 +113,7 @@
             <div id="story-character">
               <div id="story-char-aura"></div>
               <div id="story-char-symbol"></div>
+              <img id="story-char-portrait" src="" alt="" draggable="false">
               <div id="story-char-expression"></div>
             </div>
             <!-- 而룹뵮 ?대?吏 -->
@@ -141,6 +145,15 @@
                 <div id="enemy-hp-fill"></div>
               </div>
             </div>
+            <div class="combat-break-wrap">
+              <div class="combat-break-label-row">
+                <span class="combat-break-label">브레이크</span>
+                <span id="enemy-break-text">0%</span>
+              </div>
+              <div class="combat-break-bar">
+                <div id="enemy-break-fill"></div>
+              </div>
+            </div>
             <div class="combat-hp-wrap player">
               <div class="combat-hp-row">
                 <span class="combat-hp-label">나의 기력</span>
@@ -162,6 +175,16 @@
             </div>
             <div id="combat-focus-bar">
               <div id="combat-focus-fill"></div>
+            </div>
+            <div id="combat-burst-state">
+              <span id="combat-burst-text">버스트 0%</span>
+            </div>
+            <div id="combat-burst-bar">
+              <div id="combat-burst-fill"></div>
+            </div>
+            <div id="combat-reward-state">
+              <span id="combat-streak-text">연승 0</span>
+              <span id="combat-loot-text">예상 +0G</span>
             </div>
             <div id="combat-intent"></div>
             <div id="combat-feedback" aria-live="polite"></div>
@@ -369,7 +392,12 @@
           <!-- 황금 고블린 영역 -->
           <div id="golden-goblin-zone">
             <div id="golden-goblin" class="hidden" onclick="Game.catchGoblin()">
-              <span class="goblin-sprite"><span class="ui-icon icon-coins-plus" aria-hidden="true"></span></span>
+              <img
+                class="goblin-sprite-img"
+                src="assets/ui/monsters/golden_goblin.png"
+                alt="황금 고블린"
+                draggable="false"
+              />
             </div>
           </div>
         </div>

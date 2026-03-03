@@ -109,11 +109,29 @@ const Story = {
       }
 
       if (!locked) {
-        const sym = document.createElement('span');
-        sym.className = 'tab-symbol';
-        sym.textContent = data.symbol;
-        if (isActive) sym.style.color = data.color;
-        tab.appendChild(sym);
+        const portraitPath = getBeastPortraitPath(id);
+        if (portraitPath) {
+          const portrait = document.createElement('img');
+          portrait.className = 'tab-portrait';
+          portrait.src = portraitPath;
+          portrait.alt = data.name;
+          portrait.loading = 'lazy';
+          portrait.onerror = () => {
+            portrait.remove();
+            const sym = document.createElement('span');
+            sym.className = 'tab-symbol';
+            sym.textContent = data.symbol;
+            if (isActive) sym.style.color = data.color;
+            tab.prepend(sym);
+          };
+          tab.appendChild(portrait);
+        } else {
+          const sym = document.createElement('span');
+          sym.className = 'tab-symbol';
+          sym.textContent = data.symbol;
+          if (isActive) sym.style.color = data.color;
+          tab.appendChild(sym);
+        }
 
         const name = document.createTextNode(data.name);
         tab.appendChild(name);
@@ -260,6 +278,12 @@ const Story = {
     this.setupCharacter(beastId);
     this.clearCutscene();
     this.clearWeather();
+    const sceneBg = document.getElementById('story-scene-bg');
+    if (sceneBg) {
+      sceneBg.className = '';
+      sceneBg.style.backgroundImage = '';
+      sceneBg.classList.remove('has-image');
+    }
     this.createParticles(theme.particle);
     this.preloadCutscenes();
     this.updateProgress();
@@ -327,9 +351,32 @@ const Story = {
   setupCharacter(beastId) {
     const beastData = BEAST_DATA[beastId];
     const symbolEl = document.getElementById('story-char-symbol');
+    const portraitEl = document.getElementById('story-char-portrait');
     const charEl = document.getElementById('story-character');
     const exprEl = document.getElementById('story-char-expression');
-    if (beastData) symbolEl.textContent = beastData.symbol;
+    if (beastData) {
+      const portraitPath = getBeastPortraitPath(beastId);
+      symbolEl.textContent = beastData.symbol;
+      if (portraitEl && portraitPath) {
+        portraitEl.alt = beastData.name;
+        portraitEl.style.display = 'block';
+        portraitEl.onerror = () => {
+          portraitEl.style.display = 'none';
+          symbolEl.textContent = beastData.symbol;
+        };
+        portraitEl.onload = () => {
+          portraitEl.style.display = 'block';
+          symbolEl.textContent = '';
+        };
+        portraitEl.src = portraitPath;
+      } else if (portraitEl) {
+        portraitEl.removeAttribute('src');
+        portraitEl.style.display = 'none';
+      }
+    } else if (portraitEl) {
+      portraitEl.removeAttribute('src');
+      portraitEl.style.display = 'none';
+    }
     charEl.classList.remove('speaking', 'cutscene-hidden');
     if (exprEl) {
       exprEl.textContent = '';
@@ -532,6 +579,25 @@ const Story = {
       const sceneBg = document.getElementById('story-scene-bg');
       const sceneClass = this.sceneMap[name];
       sceneBg.className = sceneClass ? 'scene-' + sceneClass : '';
+      const sceneImgPath = sceneClass ? getStorySceneBackgroundPath(sceneClass) : null;
+      const sceneToken = `${sceneClass || 'none'}-${Date.now()}`;
+      sceneBg.dataset.sceneToken = sceneToken;
+      sceneBg.classList.remove('has-image');
+      sceneBg.style.backgroundImage = '';
+      if (sceneImgPath) {
+        const probe = new Image();
+        probe.onload = () => {
+          if (sceneBg.dataset.sceneToken !== sceneToken) return;
+          sceneBg.style.backgroundImage = `linear-gradient(180deg, rgba(0,0,0,0.26), rgba(0,0,0,0.46)), url("${sceneImgPath}")`;
+          sceneBg.classList.add('has-image');
+        };
+        probe.onerror = () => {
+          if (sceneBg.dataset.sceneToken !== sceneToken) return;
+          sceneBg.style.backgroundImage = '';
+          sceneBg.classList.remove('has-image');
+        };
+        probe.src = sceneImgPath;
+      }
 
       // 3) ?μ냼 ?대쫫 ?쒖떆
       el.textContent = name;
@@ -935,6 +1001,14 @@ const Story = {
         const sceneBg = document.getElementById('story-scene-bg');
         const sceneClass = this.sceneMap[node.name];
         sceneBg.className = sceneClass ? 'scene-' + sceneClass : '';
+        const sceneImgPath = sceneClass ? getStorySceneBackgroundPath(sceneClass) : null;
+        if (sceneImgPath) {
+          sceneBg.style.backgroundImage = `linear-gradient(180deg, rgba(0,0,0,0.26), rgba(0,0,0,0.46)), url("${sceneImgPath}")`;
+          sceneBg.classList.add('has-image');
+        } else {
+          sceneBg.style.backgroundImage = '';
+          sceneBg.classList.remove('has-image');
+        }
       }
       if (node.type === 'weather') this.setWeather(node.weather);
       this.currentNode++;
@@ -1017,11 +1091,29 @@ const Story = {
       }
 
       if (!locked) {
-        const sym = document.createElement('span');
-        sym.className = 'tab-symbol';
-        sym.textContent = data.symbol;
-        if (isActive) sym.style.color = data.color;
-        tab.appendChild(sym);
+        const portraitPath = getBeastPortraitPath(id);
+        if (portraitPath) {
+          const portrait = document.createElement('img');
+          portrait.className = 'tab-portrait';
+          portrait.src = portraitPath;
+          portrait.alt = data.name;
+          portrait.loading = 'lazy';
+          portrait.onerror = () => {
+            portrait.remove();
+            const sym = document.createElement('span');
+            sym.className = 'tab-symbol';
+            sym.textContent = data.symbol;
+            if (isActive) sym.style.color = data.color;
+            tab.prepend(sym);
+          };
+          tab.appendChild(portrait);
+        } else {
+          const sym = document.createElement('span');
+          sym.className = 'tab-symbol';
+          sym.textContent = data.symbol;
+          if (isActive) sym.style.color = data.color;
+          tab.appendChild(sym);
+        }
         tab.appendChild(document.createTextNode(data.name));
         tab.onclick = () => this.renderGallery(id);
       } else {

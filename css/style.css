@@ -315,16 +315,30 @@ body {
   width: 38px;
   height: 38px;
   border-radius: 50%;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
   color: #ffd54f;
   background: radial-gradient(circle at 35% 30%, rgba(255,255,255,0.4), rgba(255,213,79,0.08) 70%);
   filter: drop-shadow(0 0 8px rgba(255, 213, 79, 0.5));
 }
 
-.tiny-god-sprite .ui-icon {
+.tiny-god-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  z-index: 1;
+}
+
+.tiny-god-fallback {
+  position: absolute;
+  inset: 0;
+  margin: auto;
   width: 22px;
   height: 22px;
+  z-index: 0;
 }
 
 @keyframes float {
@@ -507,14 +521,26 @@ body {
   height: 48px;
   border-radius: 12px;
   border: 2px solid var(--card-border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-  font-weight: 800;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  position: relative;
   flex-shrink: 0;
   cursor: pointer;
   transition: all 0.2s;
+}
+
+.beast-select-item-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.beast-select-item-symbol {
+  font-size: 20px;
+  font-weight: 800;
+  color: white;
 }
 
 .beast-select-item.active {
@@ -634,6 +660,14 @@ body {
   font-size: 15px;
   font-weight: 900;
   opacity: 0.6;
+}
+
+.chapter-beast-tab .tab-portrait {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
 }
 
 .chapter-beast-tab.active {
@@ -1102,6 +1136,23 @@ body {
   transition: opacity 0.4s ease, text-shadow 0.4s ease;
 }
 
+#story-char-portrait {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 180px;
+  height: 180px;
+  transform: translate(-50%, -50%);
+  object-fit: contain;
+  opacity: 0.42;
+  filter:
+    drop-shadow(0 0 16px var(--beast-glow))
+    drop-shadow(0 0 36px var(--beast-glow));
+  animation: symbolFloat 6s ease-in-out infinite;
+  transition: opacity 0.35s ease, filter 0.35s ease;
+  display: none;
+}
+
 #story-char-expression {
   position: absolute;
   left: 50%;
@@ -1158,6 +1209,13 @@ body {
     0 0 40px var(--beast-glow),
     0 0 80px var(--beast-glow),
     0 0 120px var(--beast-glow);
+}
+
+#story-character.speaking #story-char-portrait {
+  opacity: 0.72;
+  filter:
+    drop-shadow(0 0 24px var(--beast-glow))
+    drop-shadow(0 0 56px var(--beast-glow));
 }
 
 #story-character.speaking #story-char-aura {
@@ -1440,6 +1498,12 @@ body {
   z-index: 0;
   transition: background 1.2s ease, opacity 1.2s ease;
   opacity: 0.35;
+}
+
+#story-scene-bg.has-image {
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
 #story-scene-bg.scene-orphanage {
@@ -2063,7 +2127,9 @@ body {
 
 #enemy-hp-fill,
 #player-hp-fill,
-#combat-focus-fill {
+#combat-focus-fill,
+#enemy-break-fill,
+#combat-burst-fill {
   height: 100%;
   width: 0%;
   transition: width 0.2s ease;
@@ -2075,6 +2141,42 @@ body {
 
 #player-hp-fill {
   background: linear-gradient(90deg, #68d8ff, #4fc3f7);
+}
+
+.combat-break-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.combat-break-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 11px;
+}
+
+.combat-break-label {
+  color: rgba(255,255,255,0.68);
+  font-weight: 600;
+  letter-spacing: 0.4px;
+}
+
+#enemy-break-text {
+  color: #ffd166;
+  font-weight: 700;
+}
+
+.combat-break-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.1);
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+}
+
+#enemy-break-fill {
+  background: linear-gradient(90deg, #ffe082, #ffb300);
 }
 
 #combat-rhythm-state {
@@ -2184,6 +2286,64 @@ body {
   background: linear-gradient(90deg, #ffd166, #ffb703);
 }
 
+#combat-burst-state {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  font-size: 11px;
+  margin-top: -2px;
+}
+
+#combat-burst-text {
+  color: #ffb3e6;
+  font-weight: 700;
+}
+
+#combat-burst-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.12);
+  overflow: hidden;
+}
+
+#combat-burst-fill {
+  background: linear-gradient(90deg, #ff7bd5, #d74dff);
+}
+
+#combat-reward-state {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+}
+
+#combat-streak-text {
+  color: rgba(255,255,255,0.8);
+  font-weight: 700;
+  transition: color 0.2s ease, text-shadow 0.2s ease;
+}
+
+#combat-streak-text.hot {
+  color: #ffd166;
+  text-shadow: 0 0 9px rgba(255, 209, 102, 0.42);
+}
+
+#combat-loot-text {
+  color: rgba(156, 237, 255, 0.9);
+  font-weight: 700;
+  transition: color 0.2s ease, text-shadow 0.2s ease;
+}
+
+#combat-loot-text.jackpot {
+  color: #ffb8ff;
+  text-shadow: 0 0 10px rgba(255, 184, 255, 0.4);
+}
+
 #combat-intent {
   font-size: 12px;
   color: rgba(255,255,255,0.7);
@@ -2213,6 +2373,7 @@ body {
 #combat-feedback.fb-perfect { color: #8cd8ff; text-shadow: 0 0 8px rgba(140, 216, 255, 0.4); }
 #combat-feedback.fb-break { color: #ff8f8f; }
 #combat-feedback.fb-skill { color: #ffd166; text-shadow: 0 0 10px rgba(255, 209, 102, 0.45); }
+#combat-feedback.fb-burst { color: #ff9be9; text-shadow: 0 0 11px rgba(255, 155, 233, 0.45); }
 #combat-feedback.fb-parry { color: #9dd7ff; text-shadow: 0 0 8px rgba(157, 215, 255, 0.34); }
 #combat-feedback.fb-parry-perfect { color: #c8f0ff; text-shadow: 0 0 12px rgba(200, 240, 255, 0.46); }
 #combat-feedback.fb-parry-good { color: #8ed6ff; text-shadow: 0 0 10px rgba(142, 214, 255, 0.35); }
@@ -2367,13 +2528,23 @@ body {
   width: 56px;
   height: 56px;
   border-radius: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.beast-card-icon-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.beast-card-icon-symbol {
   font-size: 28px;
   font-weight: 900;
   color: white;
-  flex-shrink: 0;
 }
 
 .beast-card-info {
@@ -2609,7 +2780,16 @@ body {
   cursor: not-allowed;
 }
 
-.tower-char-icon { font-size: 28px; display: block; margin-bottom: 4px; }
+.tower-char-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  margin: 0 auto 4px;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.16);
+}
+.tower-char-icon-symbol { font-size: 28px; display: block; margin-bottom: 4px; }
 .tower-char-name { font-size: 11px; font-weight: 600; }
 
 #tower-info, #tower-battle {
@@ -3395,25 +3575,23 @@ body {
   position: absolute;
   cursor: pointer;
   pointer-events: auto;
+  width: 72px;
+  height: 72px;
   animation: goblinBounce 0.5s ease-in-out infinite alternate;
   z-index: 10;
   transition: left 2s linear, top 2s linear;
 }
 
-.goblin-sprite {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  color: #ffe082;
-  background: radial-gradient(circle at 35% 30%, rgba(255,255,255,0.32), rgba(255,215,0,0.16));
-  filter: drop-shadow(0 0 12px rgba(255, 215, 0, 0.6));
-}
-
-.goblin-sprite .ui-icon {
-  width: 20px;
-  height: 20px;
+.goblin-sprite-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+  filter:
+    drop-shadow(0 0 14px rgba(255, 215, 0, 0.72))
+    drop-shadow(0 0 4px rgba(255, 255, 255, 0.35));
 }
 
 @keyframes goblinBounce {

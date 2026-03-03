@@ -108,8 +108,12 @@ const Tower = {
 
       const btn = document.createElement('button');
       btn.className = `tower-char-btn${locked ? ' locked' : ''}${this.selectedBeast === id ? ' active' : ''}`;
+      const portraitPath = getBeastPortraitPath(id);
+      const iconHtml = (!locked && portraitPath)
+        ? `<img class="tower-char-icon" src="${portraitPath}" alt="${data.name}" loading="lazy">`
+        : `<span class="tower-char-icon-symbol" style="color:${data.color}">${data.symbol}</span>`;
       btn.innerHTML = `
-        <span class="tower-char-icon" style="color:${data.color}">${data.symbol}</span>
+        ${iconHtml}
         <span class="tower-char-name">${data.name}</span>
       `;
 

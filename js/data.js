@@ -428,6 +428,16 @@ const CG_FOLDER_MAP = {
   hwangryong: 'hwangryong'
 };
 
+const BEAST_UI_PORTRAIT_MAP = {
+  cheongryong: 'assets/ui/beasts/cheongryong_portrait.png',
+  baekho: 'assets/ui/beasts/baekho_portrait.png',
+  jujak: 'assets/ui/beasts/jujak_portrait.png',
+  hyeonmu: 'assets/ui/beasts/hyeonmu_portrait.png',
+  hwangryong: 'assets/ui/beasts/hwangryong_portrait.png'
+};
+
+const TINY_GOD_SPRITE_PATH = 'assets/ui/misc/tiny_god.png';
+
 // 성장 단계별 사용 가능한 감정 애니메이션
 const CG_EMOTIONS = {
   cheongryong: { child: ['happy', 'dislike'], youth: [], adult: [] },
@@ -466,6 +476,31 @@ function getRandomEmotion(beastId) {
   const emotions = CG_EMOTIONS[beastId]?.[stage];
   if (!emotions || emotions.length === 0) return null;
   return emotions[Math.floor(Math.random() * emotions.length)];
+}
+
+function getBeastPortraitPath(beastId) {
+  return BEAST_UI_PORTRAIT_MAP[beastId] || null;
+}
+
+function getTinyGodSpritePath() {
+  return TINY_GOD_SPRITE_PATH;
+}
+
+const STORY_SCENE_BG_MAP = {
+  orphanage: 'assets/story/bg/orphanage.png',
+  market: 'assets/story/bg/market.png',
+  forest: 'assets/story/bg/forest.png',
+  ocean: 'assets/story/bg/ocean.png',
+  mountain: 'assets/story/bg/mountain.png',
+  home: 'assets/story/bg/home.png',
+  battlefield: 'assets/story/bg/battlefield.png',
+  temple: 'assets/story/bg/temple.png',
+  alley: 'assets/story/bg/alley.png',
+  sky: 'assets/story/bg/sky.png'
+};
+
+function getStorySceneBackgroundPath(sceneKey) {
+  return STORY_SCENE_BG_MAP[sceneKey] || null;
 }
 
 const MAIN_BG_DEFAULT_PATH = 'assets/cg/bg/bg.jpg';

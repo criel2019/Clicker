@@ -22,6 +22,17 @@ const UI = {
     const beast = GameState.beasts[beastId];
     if (!data || !beast) return;
 
+    const tinyGodImg = document.getElementById('tiny-god-img');
+    if (tinyGodImg) {
+      const godPath = getTinyGodSpritePath();
+      if (godPath && tinyGodImg.dataset.src !== godPath) {
+        tinyGodImg.dataset.src = godPath;
+        tinyGodImg.onerror = () => { tinyGodImg.style.display = 'none'; };
+        tinyGodImg.onload = () => { tinyGodImg.style.display = 'block'; };
+        tinyGodImg.src = godPath;
+      }
+    }
+
     const scene = document.getElementById('main-scene');
     const selectedBg = GameState.mainBackground || getMainBackgroundDefaultPath();
     if (scene && scene.dataset.bgPath !== selectedBg) {
@@ -31,8 +42,18 @@ const UI = {
     // 캐릭터 이미지 (CG 또는 폴백)
     const charCg = document.getElementById('main-char-cg');
     const charFallback = document.getElementById('main-char-fallback');
-    charFallback.textContent = data.symbol;
+    const portraitPath = getBeastPortraitPath(beastId);
     charFallback.style.background = data.gradient;
+    if (portraitPath) {
+      charFallback.textContent = '';
+      charFallback.style.backgroundImage = `url("${portraitPath}")`;
+      charFallback.style.backgroundSize = 'cover';
+      charFallback.style.backgroundPosition = 'center';
+      charFallback.style.backgroundRepeat = 'no-repeat';
+    } else {
+      charFallback.textContent = data.symbol;
+      charFallback.style.backgroundImage = '';
+    }
 
     const cgPath = getCGStandingPath(beastId);
     if (cgPath) {
@@ -128,8 +149,35 @@ const UI = {
       const item = document.createElement('div');
       item.className = `beast-select-item${GameState.currentBeast === id ? ' active' : ''}${locked ? ' locked' : ''}`;
       item.style.background = locked ? 'rgba(255,255,255,0.05)' : data.gradient;
-      item.style.color = 'white';
-      item.textContent = locked ? '?' : data.symbol;
+
+      if (locked) {
+        const sym = document.createElement('span');
+        sym.className = 'beast-select-item-symbol';
+        sym.textContent = '?';
+        item.appendChild(sym);
+      } else {
+        const portraitPath = getBeastPortraitPath(id);
+        if (portraitPath) {
+          const img = document.createElement('img');
+          img.className = 'beast-select-item-img';
+          img.alt = data.name;
+          img.loading = 'lazy';
+          img.src = portraitPath;
+          img.onerror = () => {
+            img.remove();
+            const sym = document.createElement('span');
+            sym.className = 'beast-select-item-symbol';
+            sym.textContent = data.symbol;
+            item.appendChild(sym);
+          };
+          item.appendChild(img);
+        } else {
+          const sym = document.createElement('span');
+          sym.className = 'beast-select-item-symbol';
+          sym.textContent = data.symbol;
+          item.appendChild(sym);
+        }
+      }
 
       if (!locked) {
         item.onclick = () => {
@@ -172,9 +220,15 @@ const UI = {
 
       const card = document.createElement('div');
       card.className = `beast-card${locked ? ' locked' : ''}`;
+      const portraitPath = getBeastPortraitPath(id);
+      const iconHtml = locked
+        ? '<span class="beast-card-icon-symbol">?</span>'
+        : portraitPath
+          ? `<img class="beast-card-icon-img" src="${portraitPath}" alt="${data.name}" loading="lazy">`
+          : `<span class="beast-card-icon-symbol">${data.symbol}</span>`;
       card.innerHTML = `
         <div class="beast-card-icon" style="background:${locked ? 'rgba(255,255,255,0.1)' : data.gradient}">
-          ${locked ? '?' : data.symbol}
+          ${iconHtml}
         </div>
         <div class="beast-card-info">
           <div class="beast-card-name">${locked ? '???' : data.name}</div>
@@ -206,7 +260,10 @@ const UI = {
 
     // 일러스트 (CG 또는 폴백)
     const illust = document.getElementById('detail-illustration');
-    const fallbackHTML = `<div class="char-img" style="background:${data.gradient};width:120px;height:120px;font-size:50px;
+    const detailPortraitPath = getBeastPortraitPath(beastId);
+    const fallbackHTML = detailPortraitPath
+      ? `<img class="detail-char-cg" src="${detailPortraitPath}" alt="${data.name}">`
+      : `<div class="char-img" style="background:${data.gradient};width:120px;height:120px;font-size:50px;
       border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;
       color:white;margin:0 auto;box-shadow:0 0 30px ${data.color}44;">${data.symbol}</div>`;
     const detailCgPath = getCGStandingPath(beastId);
@@ -448,17 +505,37 @@ const UI = {
         };
         testImg.onerror = () => {
           sprite.innerHTML = '';
-          sprite.style.background = data.gradient;
-          sprite.style.borderRadius = '50%';
-          sprite.textContent = data.symbol;
+          const portraitPath = getBeastPortraitPath(beastId);
+          if (portraitPath) {
+            sprite.style.background = 'transparent';
+            sprite.style.borderRadius = '0';
+            const imgEl = document.createElement('img');
+            imgEl.src = portraitPath;
+            imgEl.className = 'training-char-cg';
+            sprite.appendChild(imgEl);
+          } else {
+            sprite.style.background = data.gradient;
+            sprite.style.borderRadius = '50%';
+            sprite.textContent = data.symbol;
+          }
           sprite.dataset.cgSrc = '';
         };
         testImg.src = trainCgPath;
       } else if (!trainCgPath) {
         sprite.innerHTML = '';
-        sprite.style.background = data.gradient;
-        sprite.style.borderRadius = '50%';
-        sprite.textContent = data.symbol;
+        const portraitPath = getBeastPortraitPath(beastId);
+        if (portraitPath) {
+          sprite.style.background = 'transparent';
+          sprite.style.borderRadius = '0';
+          const imgEl = document.createElement('img');
+          imgEl.src = portraitPath;
+          imgEl.className = 'training-char-cg';
+          sprite.appendChild(imgEl);
+        } else {
+          sprite.style.background = data.gradient;
+          sprite.style.borderRadius = '50%';
+          sprite.textContent = data.symbol;
+        }
       }
     }
 

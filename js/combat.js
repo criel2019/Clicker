@@ -70,6 +70,9 @@ const Combat = {
   lastTapAt: 0,
   focusGauge: 0,
   focusReady: false,
+  burstGauge: 0,
+  burstReady: false,
+  enemyBreakGauge: 0,
   enemyStaggerTurns: 0,
   enemyPhase: 0,
   enemyTurnTimer: null,
@@ -80,6 +83,16 @@ const Combat = {
   rhythmCycleStart: 0,
   lastResolvedBeat: -1,
   pendingEnemyStrike: null,
+  winStreak: 0,
+  comboPeak: 0,
+  rewardScore: 0,
+  perfectCount: 0,
+  goodCount: 0,
+  breakCount: 0,
+  parryGoodCount: 0,
+  parryPerfectCount: 0,
+  parryFailCount: 0,
+  fightStartedAt: 0,
 
   // 전투 시작
   start(beastId, enemy, onWin, onLose) {
@@ -94,12 +107,24 @@ const Combat = {
     this.lastTapAt = 0;
     this.focusGauge = 0;
     this.focusReady = false;
+    this.burstGauge = 0;
+    this.burstReady = false;
+    this.enemyBreakGauge = 0;
     this.enemyStaggerTurns = 0;
     this.enemyPhase = 0;
     this.inputLockedUntil = 0;
     this.rhythmCycleStart = Date.now();
     this.lastResolvedBeat = -1;
     this.pendingEnemyStrike = null;
+    this.comboPeak = 0;
+    this.rewardScore = 0;
+    this.perfectCount = 0;
+    this.goodCount = 0;
+    this.breakCount = 0;
+    this.parryGoodCount = 0;
+    this.parryPerfectCount = 0;
+    this.parryFailCount = 0;
+    this.fightStartedAt = Date.now();
     this.clearFeedbackTimer();
     this.stopRhythmMeter();
     if (this.enemyTurnTimer) {
@@ -164,6 +189,8 @@ const Combat = {
     const rhythm = this.updateRhythm(now);
     if (rhythm.grade === 'break') {
       this.focusGauge = Math.max(0, this.focusGauge - 12);
+      this.burstGauge = Math.max(0, this.burstGauge - 10);
+      this.burstReady = this.burstGauge >= 100;
       this.updateCombatStateUI();
       this.logLine('타이밍이 빗나가 공격이 허공을 갈랐다.', 'log-miss');
       this.scheduleEnemyAttack(320);
@@ -195,25 +222,41 @@ const Combat = {
       result = DICE_RESULTS.critical;
       tierKey = 'critical';
     }
+    if (tierKey === 'critical') this.addRewardScore(5);
+    else if (tierKey === 'good') this.addRewardScore(3);
+    else if (tierKey === 'normal') this.addRewardScore(1);
+    else this.addRewardScore(-2);
 
     // 데미지 계산
     const level = (GameState.beasts[this.beastId] || {}).level || 1;
     const baseDmg = 10 + Math.floor(level / 5);
     const comboMult = this.getComboDamageMultiplier();
     const rhythmMult = rhythm.grade === 'perfect' ? 1.35 : rhythm.grade === 'good' ? 1.12 : 0.9;
-    const damage = Math.max(1, Math.floor(baseDmg * result.dmgMult * comboMult * rhythmMult));
+    const burstActive = this.burstReady;
+    const burstMult = burstActive ? 1.45 : 1.0;
+    if (burstActive) {
+      this.burstGauge = 0;
+      this.burstReady = false;
+    }
+    const damage = Math.max(1, Math.floor(baseDmg * result.dmgMult * comboMult * rhythmMult * burstMult));
 
     // 적 HP 감소
     this.enemy.currentHp = Math.max(0, this.enemy.currentHp - damage);
 
     const attackText = ATTACK_TEXTS[tierKey][Math.floor(Math.random() * ATTACK_TEXTS[tierKey].length)];
     const rhythmText = rhythm.label ? ` ${rhythm.label}` : '';
-    this.logLine(`${attackText} (${damage} 피해)${rhythmText}`, result.class);
-    this.spawnHitEffect('enemy', tierKey === 'critical' ? 'heavy' : 'normal');
+    const burstText = burstActive ? ' [버스트 발동]' : '';
+    this.logLine(`${attackText} (${damage} 피해)${rhythmText}${burstText}`, result.class);
+    if (burstActive) this.showRhythmFeedback('burst');
+    this.spawnHitEffect('enemy', (tierKey === 'critical' || burstActive) ? 'heavy' : 'normal');
 
     // 집중 게이지 증가
     const focusByTier = { fail: 8, normal: 12, good: 18, critical: 26 };
     this.gainFocus((focusByTier[tierKey] || 10) + rhythm.focusBonus);
+    const burstByTier = { fail: 6, normal: 10, good: 18, critical: 28 };
+    this.gainBurst((burstByTier[tierKey] || 8) + (rhythm.grade === 'perfect' ? 10 : rhythm.grade === 'good' ? 4 : 0));
+    const breakByTier = { fail: 8, normal: 14, good: 22, critical: 34 };
+    this.gainEnemyBreak((breakByTier[tierKey] || 12) + (rhythm.grade === 'perfect' ? 12 : rhythm.grade === 'good' ? 6 : 0));
 
     this.applyImpact(tierKey);
     this.updateEnemyStatus();
@@ -250,15 +293,25 @@ const Combat = {
     const level = (GameState.beasts[this.beastId] || {}).level || 1;
     const comboMult = this.getComboDamageMultiplier();
     const skillBase = 24 + Math.floor(level / 8);
-    const skillDmg = Math.max(1, Math.floor(skillBase * 2.1 * comboMult));
+    const burstActive = this.burstReady;
+    const burstMult = burstActive ? 1.35 : 1.0;
+    if (burstActive) {
+      this.burstGauge = 0;
+      this.burstReady = false;
+    }
+    const skillDmg = Math.max(1, Math.floor(skillBase * 2.1 * comboMult * burstMult));
 
     this.enemy.currentHp = Math.max(0, this.enemy.currentHp - skillDmg);
     this.focusGauge = 0;
     this.focusReady = false;
     this.enemyStaggerTurns = 1;
     this.comboCount = Math.min(COMBAT_RHYTHM.maxCombo, this.comboCount + 1);
+    this.comboPeak = Math.max(this.comboPeak, this.comboCount);
+    this.addRewardScore(8);
+    this.gainBurst(20);
+    this.gainEnemyBreak(46);
 
-    this.logLine(`각성 일격! 엄청난 파동이 적을 꿰뚫었다! (${skillDmg} 피해)`, 'log-critical');
+    this.logLine(`각성 일격! 엄청난 파동이 적을 꿰뚫었다! (${skillDmg} 피해)${burstActive ? ' [버스트 증폭]' : ''}`, 'log-critical');
     this.setIntent('적이 균형을 잃었다. 다음 반격이 지연된다!');
     this.showRhythmFeedback('skill');
     this.spawnHitEffect('enemy', 'skill');
@@ -298,14 +351,14 @@ const Combat = {
 
     if (this.enemyStaggerTurns > 0) {
       this.enemyStaggerTurns--;
-      this.logLine('Enemy staggered and missed the timing!', 'log-good');
+      this.logLine('적이 브레이크 상태라 반격 타이밍을 놓쳤다!', 'log-good');
       this.queueEnemyIntent();
       return;
     }
 
     const attackChance = this.getEnemyAttackChance();
     if (Math.random() > attackChance) {
-      this.logLine('Enemy stays cautious and keeps distance.', 'log-miss');
+      this.logLine('적이 거리를 벌리며 타이밍을 잰다.', 'log-miss');
       this.queueEnemyIntent();
       return;
     }
@@ -333,8 +386,8 @@ const Combat = {
       parryTried: false
     };
 
-    this.logLine(`Enemy telegraphs ${pattern.name}! Parry right before impact!`, 'log-enemy');
-    this.setIntent(`Incoming ${pattern.name}! Hit [Parry] at the last moment.`);
+    this.logLine(`적이 ${pattern.name} 예고 동작을 보인다! 마지막 순간 패링하라!`, 'log-enemy');
+    this.setIntent(`${pattern.name} 예고! 충돌 직전에 [패링]`);
     this.showRhythmFeedback('parry');
     this.updateCombatStateUI();
 
@@ -364,16 +417,22 @@ const Combat = {
     const delta = Math.abs(now - strike.resolveAt);
     if (delta <= COMBAT_PARRY.perfectWindowMs) {
       strike.parryGrade = 'perfect';
+      this.parryPerfectCount += 1;
+      this.addRewardScore(7);
       this.showRhythmFeedback('parryPerfect');
-      this.logLine('Perfect parry timing locked in!', 'log-good');
+      this.logLine('완벽한 패링 타이밍을 잡았다!', 'log-good');
     } else if (delta <= COMBAT_PARRY.goodWindowMs) {
       strike.parryGrade = 'good';
+      this.parryGoodCount += 1;
+      this.addRewardScore(4);
       this.showRhythmFeedback('parryGood');
-      this.logLine('Parry success! Incoming damage will be reduced.', 'log-good');
+      this.logLine('패링 성공! 받는 피해가 줄어든다.', 'log-good');
     } else {
       strike.parryGrade = 'fail';
+      this.parryFailCount += 1;
+      this.addRewardScore(-3);
       this.showRhythmFeedback('parryFail');
-      this.logLine('Parry timing missed...', 'log-miss');
+      this.logLine('패링 타이밍을 놓쳤다...', 'log-miss');
     }
 
     if (now >= strike.resolveAt - 12) {
@@ -410,15 +469,18 @@ const Combat = {
       const counter = this.computeParryCounterDamage(pattern, true);
       this.enemy.currentHp = Math.max(0, this.enemy.currentHp - counter);
       this.comboCount = Math.min(COMBAT_RHYTHM.maxCombo, this.comboCount + 1);
+      this.comboPeak = Math.max(this.comboPeak, this.comboCount);
       this.gainFocus(18);
-      this.logLine(`Perfect parry! Counter hit (${counter} dmg)`, 'log-critical');
+      this.gainBurst(22);
+      this.gainEnemyBreak(20);
+      this.logLine(`완벽 패링! 반격 적중 (${counter} 피해)`, 'log-critical');
       this.spawnHitEffect('enemy', 'heavy');
       this.applyImpact('critical');
       this.updateEnemyStatus();
       this.updateEnemyPhase();
       this.updateCombatStateUI();
       if (this.enemy.currentHp <= 0) {
-        this.logLine(`${this.enemy.name} is defeated!`, 'log-critical');
+        this.logLine(`${this.enemy.name}이(가) 쓰러졌다!`, 'log-critical');
         setTimeout(() => this.end(true), 750);
         return;
       }
@@ -431,25 +493,28 @@ const Combat = {
       const counter = this.computeParryCounterDamage(pattern, false);
       this.enemy.currentHp = Math.max(0, this.enemy.currentHp - counter);
       this.gainFocus(10);
-      this.logLine(`Parry success! Damage cut + counter (${counter} dmg)`, 'log-good');
+      this.gainBurst(12);
+      this.gainEnemyBreak(12);
+      this.logLine(`패링 성공! 피해 감소 + 반격 (${counter} 피해)`, 'log-good');
       this.spawnHitEffect('enemy', 'normal');
       this.updateEnemyStatus();
       this.updateEnemyPhase();
       if (this.enemy.currentHp <= 0) {
         this.updateCombatStateUI();
-        this.logLine(`${this.enemy.name} is defeated!`, 'log-critical');
+        this.logLine(`${this.enemy.name}이(가) 쓰러졌다!`, 'log-critical');
         setTimeout(() => this.end(true), 750);
         return;
       }
     } else if (parryGrade === 'fail') {
       enemyDmg = Math.max(1, Math.floor(enemyDmg * COMBAT_PARRY.failDamageRatio));
-      this.logLine('Parry failed and you took a direct hit!', 'log-enemy');
+      this.logLine('패링 실패! 정타를 허용했다!', 'log-enemy');
     }
 
     this.playerHp = Math.max(0, this.playerHp - enemyDmg);
+    this.addRewardScore(-Math.max(0, Math.floor(enemyDmg / 8)));
     const hitText = ENEMY_ATTACK_TEXTS.hit[Math.floor(Math.random() * ENEMY_ATTACK_TEXTS.hit.length)];
-    const suffix = parryGrade === 'good' ? ' [reduced]' : (parryGrade === 'fail' ? ' [failed]' : '');
-    this.logLine(`${hitText} ${pattern.hitText} (${enemyDmg} dmg)${suffix}`, 'log-enemy');
+    const suffix = parryGrade === 'good' ? ' [피해 감소]' : (parryGrade === 'fail' ? ' [패링 실패]' : '');
+    this.logLine(`${hitText} ${pattern.hitText} (${enemyDmg} 피해)${suffix}`, 'log-enemy');
     this.spawnHitEffect('player', pattern.heavy ? 'heavy' : 'normal');
 
     this.applyImpact(pattern.heavy ? 'enemyHeavy' : 'enemy');
@@ -457,7 +522,7 @@ const Combat = {
     this.updateCombatStateUI();
 
     if (this.playerHp <= 0) {
-      this.logLine('You can no longer hold on...', 'log-enemy');
+      this.logLine('더는 버틸 수 없다...', 'log-enemy');
       setTimeout(() => this.end(false), 750);
       return;
     }
@@ -499,24 +564,32 @@ const Combat = {
       this.comboCount = 1;
       label = ' [리듬 시작]';
       grade = 'start';
+      this.addRewardScore(1);
     } else if (cursorMs >= COMBAT_RHYTHM.perfectMin && cursorMs <= COMBAT_RHYTHM.perfectMax) {
       this.comboCount = Math.min(COMBAT_RHYTHM.maxCombo, this.comboCount + 1);
       rollBonus = 2;
       focusBonus = 6;
       label = ' [리듬 완벽]';
       grade = 'perfect';
+      this.perfectCount += 1;
+      this.addRewardScore(5);
     } else if (cursorMs >= COMBAT_RHYTHM.goodMin && cursorMs <= COMBAT_RHYTHM.goodMax) {
       this.comboCount = Math.min(COMBAT_RHYTHM.maxCombo, this.comboCount + 1);
       rollBonus = 1;
       focusBonus = 3;
       label = ' [리듬 유지]';
       grade = 'good';
+      this.goodCount += 1;
+      this.addRewardScore(2);
     } else {
       this.comboCount = 1;
       label = ' [호흡 붕괴]';
       grade = 'break';
+      this.breakCount += 1;
+      this.addRewardScore(-4);
     }
 
+    this.comboPeak = Math.max(this.comboPeak, this.comboCount);
     this.lastTapAt = now;
     this.updateCombatStateUI();
     this.showRhythmFeedback(grade);
@@ -617,16 +690,17 @@ const Combat = {
     if (!el) return;
 
     const map = {
-      start: { text: 'RHYTHM START', cls: 'fb-start' },
+      start: { text: '리듬 시작', cls: 'fb-start' },
       good: { text: 'GOOD', cls: 'fb-good' },
       perfect: { text: 'PERFECT', cls: 'fb-perfect' },
-      break: { text: 'RHYTHM BREAK', cls: 'fb-break' },
-      wait: { text: 'WAIT NEXT BEAT', cls: 'fb-start' },
-      skill: { text: 'SKILL STRIKE!', cls: 'fb-skill' },
-      parry: { text: 'PARRY READY', cls: 'fb-parry' },
-      parryGood: { text: 'PARRY GOOD', cls: 'fb-parry-good' },
-      parryPerfect: { text: 'PARRY PERFECT', cls: 'fb-parry-perfect' },
-      parryFail: { text: 'PARRY FAIL', cls: 'fb-parry-fail' }
+      break: { text: '리듬 붕괴', cls: 'fb-break' },
+      wait: { text: '다음 박자 대기', cls: 'fb-start' },
+      skill: { text: '각성 일격!', cls: 'fb-skill' },
+      burst: { text: 'BURST', cls: 'fb-burst' },
+      parry: { text: '패링 준비', cls: 'fb-parry' },
+      parryGood: { text: '패링 성공', cls: 'fb-parry-good' },
+      parryPerfect: { text: '완벽 패링', cls: 'fb-parry-perfect' },
+      parryFail: { text: '패링 실패', cls: 'fb-parry-fail' }
     };
     const item = map[kind] || map.start;
     el.textContent = item.text;
@@ -642,6 +716,105 @@ const Combat = {
     return 1 + Math.max(0, this.comboCount - 1) * 0.08;
   },
 
+  addRewardScore(delta) {
+    this.rewardScore = Math.max(-35, Math.min(240, this.rewardScore + delta));
+  },
+
+  getCombatRewardPreview(streakOverride) {
+    const streak = typeof streakOverride === 'number' ? Math.max(0, streakOverride) : Math.max(0, this.winStreak);
+    const enemyHp = Math.max(1, (this.enemy && this.enemy.hp) || 80);
+    const enemyAtk = Math.max(1, (this.enemy && this.enemy.attack) || 10);
+    const baseGold = Math.max(24, Math.floor(enemyHp * 0.42 + enemyAtk * 2.8));
+    const streakRate = Math.min(0.65, streak * 0.08);
+    const hpRatio = this.playerMaxHp > 0 ? (this.playerHp / this.playerMaxHp) : 1;
+    const hpRate = Math.max(-0.1, Math.min(0.18, (hpRatio - 0.5) * 0.36));
+    const momentumRate = Math.max(-0.26, Math.min(0.92, this.rewardScore * 0.015));
+    const elapsedSec = Math.max(1, (Date.now() - (this.fightStartedAt || Date.now())) / 1000);
+    const speedRate = Math.max(0, Math.min(0.22, (36 - elapsedSec) * 0.006));
+    const multiplier = Math.max(0.72, 1 + streakRate + hpRate + momentumRate + speedRate);
+    const gold = Math.max(12, Math.floor(baseGold * multiplier));
+
+    const qualityRaw = (
+      this.rewardScore +
+      this.perfectCount * 3 +
+      this.parryPerfectCount * 6 +
+      this.parryGoodCount * 3 +
+      this.comboPeak * 2
+    ) / 120;
+    const quality = Math.max(0, Math.min(1, qualityRaw));
+    const randomTicketChance = Math.min(0.35, 0.03 + quality * 0.18 + streak * 0.012);
+    const selectTicketChance = Math.min(0.08, 0.004 + quality * 0.04 + Math.max(0, streak - 2) * 0.006);
+    const ticketChance = 1 - (1 - randomTicketChance) * (1 - selectTicketChance);
+
+    return {
+      gold,
+      quality,
+      streakRate,
+      randomTicketChance,
+      selectTicketChance,
+      ticketChance
+    };
+  },
+
+  normalizeTicketState() {
+    if (!GameState.gachaTickets) {
+      GameState.gachaTickets = { random: 0, select: 0 };
+      return;
+    }
+    if (typeof GameState.gachaTickets === 'number') {
+      GameState.gachaTickets = { random: Math.max(0, GameState.gachaTickets), select: 0 };
+      return;
+    }
+    GameState.gachaTickets.random = Math.max(0, Number(GameState.gachaTickets.random) || 0);
+    GameState.gachaTickets.select = Math.max(0, Number(GameState.gachaTickets.select) || 0);
+  },
+
+  grantVictoryRewards() {
+    const preview = this.getCombatRewardPreview(this.winStreak);
+    let gold = preview.gold;
+    const drops = [];
+
+    if (Math.random() < Math.min(0.35, 0.08 + preview.quality * 0.22)) {
+      const jackpot = Math.max(8, Math.floor(gold * (0.25 + Math.random() * 0.32)));
+      gold += jackpot;
+      drops.push(`잭팟 +${jackpot}G`);
+    }
+
+    const cakeChance = Math.min(0.26, 0.06 + preview.quality * 0.14);
+    const flowerChance = Math.min(0.56, 0.24 + preview.quality * 0.22);
+    const itemRoll = Math.random();
+    let affectionItemId = null;
+    if (itemRoll < cakeChance) affectionItemId = 'gift_cake';
+    else if (itemRoll < cakeChance + flowerChance) affectionItemId = 'gift_flower';
+
+    if (affectionItemId) {
+      if (!GameState.inventory) GameState.inventory = { affectionItems: {}, trainingTools: {}, skins: {} };
+      if (!GameState.inventory.affectionItems) GameState.inventory.affectionItems = {};
+      if (!GameState.inventory.affectionItems[affectionItemId]) GameState.inventory.affectionItems[affectionItemId] = 0;
+      GameState.inventory.affectionItems[affectionItemId] += 1;
+      const itemData = AFFECTION_ITEMS.find(i => i.id === affectionItemId);
+      if (itemData) drops.push(itemData.name);
+    }
+
+    this.normalizeTicketState();
+    if (Math.random() < preview.selectTicketChance) {
+      GameState.gachaTickets.select += 1;
+      drops.push('스킨 선택권');
+    } else if (Math.random() < preview.randomTicketChance) {
+      GameState.gachaTickets.random += 1;
+      drops.push('랜덤 스킨 가챠권');
+    }
+
+    GameState.gold += gold;
+    GameState.save();
+    UI.updateGoldDisplay();
+
+    const dropText = drops.length ? ` · ${drops.join(', ')}` : '';
+    UI.showToast(`전투 보상 +${gold}G${dropText}`);
+
+    return { gold, drops };
+  },
+
   gainFocus(amount) {
     const prev = this.focusGauge;
     this.focusGauge = Math.min(100, this.focusGauge + amount);
@@ -650,6 +823,28 @@ const Combat = {
       this.logLine('집중이 가득 찼다! [각성 일격] 사용 가능', 'log-good');
     }
     this.updateCombatStateUI();
+  },
+
+  gainBurst(amount) {
+    const prev = this.burstGauge;
+    this.burstGauge = Math.min(100, this.burstGauge + amount);
+    if (this.burstGauge >= 100 && prev < 100) {
+      this.burstReady = true;
+      this.logLine('버스트 충전 완료! 다음 공격이 크게 강화된다.', 'log-good');
+    }
+    this.updateCombatStateUI();
+  },
+
+  gainEnemyBreak(amount) {
+    this.enemyBreakGauge = Math.min(100, this.enemyBreakGauge + amount);
+    if (this.enemyBreakGauge >= 100) {
+      this.enemyBreakGauge = 0;
+      this.enemyStaggerTurns += 1;
+      this.logLine('브레이크! 적의 자세가 무너져 다음 반격이 멈춘다.', 'log-critical');
+      this.showRhythmFeedback('perfect');
+      this.applyImpact('critical');
+    }
+    this.updateEnemyStatus();
   },
 
   getEnemyAttackChance() {
@@ -708,26 +903,45 @@ const Combat = {
     const rhythmText = document.getElementById('combat-rhythm-text');
     const focusText = document.getElementById('combat-focus-text');
     const focusFill = document.getElementById('combat-focus-fill');
+    const burstText = document.getElementById('combat-burst-text');
+    const burstFill = document.getElementById('combat-burst-fill');
     const skillBtn = document.getElementById('combat-skill-btn');
     const tapBtn = document.getElementById('combat-tap-btn');
     const parryBtn = document.getElementById('combat-parry-btn');
+    const streakText = document.getElementById('combat-streak-text');
+    const lootText = document.getElementById('combat-loot-text');
 
     const comboMult = this.getComboDamageMultiplier();
-    if (rhythmText) rhythmText.textContent = `Rhythm x${comboMult.toFixed(2)} (${this.comboCount} combo)`;
-    if (focusText) focusText.textContent = `Focus ${Math.floor(this.focusGauge)}%`;
+    const rewardPreview = this.getCombatRewardPreview();
+    const streakPct = Math.round(rewardPreview.streakRate * 100);
+    const ticketPct = Math.round(rewardPreview.ticketChance * 100);
+    if (rhythmText) rhythmText.textContent = `리듬 x${comboMult.toFixed(2)} (${this.comboCount} 콤보)`;
+    if (focusText) focusText.textContent = `집중 ${Math.floor(this.focusGauge)}%`;
     if (focusFill) focusFill.style.width = `${Math.max(0, Math.min(100, this.focusGauge))}%`;
+    if (burstText) burstText.textContent = this.burstReady ? '버스트 READY' : `버스트 ${Math.floor(this.burstGauge)}%`;
+    if (burstFill) burstFill.style.width = `${Math.max(0, Math.min(100, this.burstGauge))}%`;
+    if (streakText) {
+      streakText.textContent = this.winStreak > 0
+        ? `연승 ${this.winStreak} (+${streakPct}%)`
+        : '연승 0';
+      streakText.classList.toggle('hot', this.winStreak >= 3);
+    }
+    if (lootText) {
+      lootText.textContent = `예상 +${rewardPreview.gold}G · 티켓 ${ticketPct}%`;
+      lootText.classList.toggle('jackpot', ticketPct >= 15);
+    }
     if (skillBtn) {
       const ready = this.focusGauge >= 100;
       skillBtn.disabled = !ready;
       skillBtn.classList.toggle('ready', ready);
-      skillBtn.textContent = ready ? 'Awakening READY' : `Awakening (${Math.floor(this.focusGauge)}%)`;
+      skillBtn.textContent = ready ? '각성 일격 READY' : `각성 일격 (${Math.floor(this.focusGauge)}%)`;
     }
     if (tapBtn) tapBtn.classList.toggle('combo-hot', this.comboCount >= 4);
     if (parryBtn) {
       const ready = !!this.pendingEnemyStrike;
       parryBtn.disabled = !ready;
       parryBtn.classList.toggle('ready', ready);
-      parryBtn.textContent = ready ? 'Parry!' : 'Parry wait';
+      parryBtn.textContent = ready ? '패링!' : '패링 대기';
     }
   },
 
@@ -743,8 +957,12 @@ const Combat = {
 
     const hpText = document.getElementById('enemy-hp-text');
     const hpFill = document.getElementById('enemy-hp-fill');
+    const breakText = document.getElementById('enemy-break-text');
+    const breakFill = document.getElementById('enemy-break-fill');
     if (hpText) hpText.textContent = statusText;
     if (hpFill) hpFill.style.width = `${Math.max(0, Math.min(100, ratio * 100))}%`;
+    if (breakText) breakText.textContent = `${Math.floor(this.enemyBreakGauge)}%`;
+    if (breakFill) breakFill.style.width = `${Math.max(0, Math.min(100, this.enemyBreakGauge))}%`;
   },
 
   updatePlayerStatus() {
@@ -858,6 +1076,21 @@ const Combat = {
 
   // 전투 종료
   end(won) {
+    const prevStreak = this.winStreak;
+    if (won) {
+      this.grantVictoryRewards();
+      this.winStreak = prevStreak + 1;
+      if (this.winStreak >= 2) {
+        const nextBonus = Math.round(Math.min(65, this.winStreak * 8));
+        UI.showToast(`${this.winStreak}연승! 다음 전투 보상 +${nextBonus}%`);
+      }
+    } else {
+      if (prevStreak >= 3) {
+        UI.showToast(`${prevStreak}연승 종료... 다시 올려보자.`);
+      }
+      this.winStreak = 0;
+    }
+
     this.active = false;
     this.pendingEnemyStrike = null;
     this.stopRhythmMeter();
@@ -882,7 +1115,7 @@ const Combat = {
     if (parryBtn) {
       parryBtn.classList.remove('ready');
       parryBtn.disabled = true;
-      parryBtn.textContent = 'Parry wait';
+      parryBtn.textContent = '패링 대기';
     }
     if (feedback) feedback.className = '';
     if (vfxLayer) vfxLayer.innerHTML = '';
@@ -892,6 +1125,9 @@ const Combat = {
       expr.className = '';
       expr.textContent = '';
     }
+    this.burstGauge = 0;
+    this.burstReady = false;
+    this.enemyBreakGauge = 0;
 
     if (won && this.onWin) {
       this.onWin();
