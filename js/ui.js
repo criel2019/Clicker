@@ -1,8 +1,20 @@
 ﻿/* ===== UI 관리 ===== */
 
 const UI = {
+  playSfx(type = 'page', throttledMs = 0) {
+    if (typeof StoryAudio === 'undefined' || !StoryAudio) return;
+    if (throttledMs > 0 && typeof StoryAudio.playSfxThrottled === 'function') {
+      StoryAudio.playSfxThrottled(type, throttledMs);
+      return;
+    }
+    if (typeof StoryAudio.playSfx === 'function') {
+      StoryAudio.playSfx(type);
+    }
+  },
+
   // 탭 전환
   switchTab(tabName) {
+    this.playSfx('page', 120);
     document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
     document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
 
@@ -252,6 +264,7 @@ const UI = {
 
   // 신수 상세 열기
   openBeastDetail(beastId) {
+    this.playSfx('page', 120);
     const data = BEAST_DATA[beastId];
     const beast = GameState.beasts[beastId];
     if (!data || !beast) return;
@@ -328,16 +341,19 @@ const UI = {
   },
 
   closeBeastDetail() {
+    this.playSfx('transition', 120);
     this.renderBeastCards();
   },
 
   // 오버레이 열기/닫기
   openShop() {
+    this.playSfx('transition', 120);
     document.getElementById('overlay-shop').classList.remove('hidden');
     Shop.render();
   },
 
   openBackgrounds() {
+    this.playSfx('transition', 120);
     document.getElementById('overlay-background').classList.remove('hidden');
     this.renderBackgroundOptions();
   },
@@ -455,6 +471,7 @@ const UI = {
   selectMainBackground(path) {
     GameState.mainBackground = path || getMainBackgroundDefaultPath();
     GameState.save();
+    this.playSfx('reward', 120);
 
     const scene = document.getElementById('main-scene');
     if (scene) scene.dataset.bgPath = GameState.mainBackground;
@@ -464,6 +481,7 @@ const UI = {
   },
 
   openTraining() {
+    this.playSfx('transition', 120);
     document.getElementById('overlay-training').classList.remove('hidden');
     this.updateTrainingDisplay();
     // Hide tools panel on open
@@ -472,6 +490,7 @@ const UI = {
   },
 
   closeOverlay(type) {
+    this.playSfx('transition', 120);
     document.getElementById(`overlay-${type}`).classList.add('hidden');
   },
 
@@ -558,6 +577,7 @@ const UI = {
 
   // Toggle training tools panel
   toggleTrainingTools() {
+    this.playSfx('page', 120);
     const panel = document.getElementById('training-tools-panel');
     if (panel) {
       panel.classList.toggle('hidden');

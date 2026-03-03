@@ -810,6 +810,9 @@ const Combat = {
     UI.updateGoldDisplay();
 
     const dropText = drops.length ? ` · ${drops.join(', ')}` : '';
+    if (typeof StoryAudio !== 'undefined' && StoryAudio && StoryAudio.playSfx) {
+      StoryAudio.playSfx('reward');
+    }
     UI.showToast(`전투 보상 +${gold}G${dropText}`);
 
     return { gold, drops };

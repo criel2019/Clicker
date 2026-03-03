@@ -74,6 +74,17 @@ const Tower = {
   lastResolvedBeat: -1,
   pendingEnemyStrike: null,
 
+  playSfx(type = 'page', throttledMs = 0) {
+    if (typeof StoryAudio === 'undefined' || !StoryAudio) return;
+    if (throttledMs > 0 && typeof StoryAudio.playSfxThrottled === 'function') {
+      StoryAudio.playSfxThrottled(type, throttledMs);
+      return;
+    }
+    if (typeof StoryAudio.playSfx === 'function') {
+      StoryAudio.playSfx(type);
+    }
+  },
+
   // 탑 적 생성 (층수 기반)
   generateEnemy(beastId, floor) {
     const themes = {
@@ -127,6 +138,7 @@ const Tower = {
 
   // 캐릭터 선택
   selectBeast(beastId) {
+    this.playSfx('page', 120);
     this.selectedBeast = beastId;
     this.stopRhythmMeter();
     this.clearFeedbackTimer();
@@ -169,6 +181,7 @@ const Tower = {
   // 전투 시작
   startBattle() {
     if (!this.selectedBeast) return;
+    this.playSfx('combat');
 
     const beastId = this.selectedBeast;
     const towerData = GameState.tower[beastId];
@@ -317,6 +330,7 @@ const Tower = {
     const now = Date.now();
     if (now < this.inputLockedUntil) return;
     this.inputLockedUntil = now + 90;
+    this.playSfx('flash');
 
     const beastId = this.selectedBeast;
     const level = (GameState.beasts[beastId] || {}).level || 1;
@@ -425,10 +439,12 @@ const Tower = {
     const delta = Math.abs(now - strike.resolveAt);
     if (delta <= TOWER_PARRY.perfectWindowMs) {
       strike.parryGrade = 'perfect';
+      this.playSfx('flash', 80);
       this.showRhythmFeedback('parryPerfect');
       this.logLine('완벽 패링 타이밍을 잡았다!', 'log-good');
     } else if (delta <= TOWER_PARRY.goodWindowMs) {
       strike.parryGrade = 'good';
+      this.playSfx('page', 80);
       this.showRhythmFeedback('parryGood');
       this.logLine('패링 성공! 피해를 크게 줄인다.', 'log-good');
     } else {
@@ -893,6 +909,7 @@ const Tower = {
 
   // 층 클리어
   winFloor() {
+    this.playSfx('reward');
     this.stopRhythmMeter();
     this.clearFeedbackTimer();
     this.clearBattleTimers();
@@ -938,6 +955,7 @@ const Tower = {
 
   // 패배
   loseFloor() {
+    this.playSfx('shake');
     this.stopRhythmMeter();
     this.clearFeedbackTimer();
     this.clearBattleTimers();

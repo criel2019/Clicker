@@ -1,4 +1,4 @@
-/* ===== 메인 게임 로직 ===== */
+﻿/* ===== 메인 게임 로직 ===== */
 
 const Game = {
   goblinTimer: null,
@@ -6,6 +6,17 @@ const Game = {
   goblinTimeout: null,
   idleInterval: null,
   saveInterval: null,
+
+  playSfx(type = 'page', throttledMs = 0) {
+    if (typeof StoryAudio === 'undefined' || !StoryAudio) return;
+    if (throttledMs > 0 && typeof StoryAudio.playSfxThrottled === 'function') {
+      StoryAudio.playSfxThrottled(type, throttledMs);
+      return;
+    }
+    if (typeof StoryAudio.playSfx === 'function') {
+      StoryAudio.playSfx(type);
+    }
+  },
 
   // 게임 초기화
   init() {
@@ -40,6 +51,7 @@ const Game = {
 
   // 캐릭터 탭 (메인 화면)
   tapCharacter() {
+    this.playSfx('page', 120);
     const beastId = GameState.currentBeast;
     const beast = GameState.beasts[beastId];
     const data = BEAST_DATA[beastId];
@@ -113,6 +125,7 @@ const Game = {
 
   // 훈련 화면 탭
   trainTap(event) {
+    this.playSfx('page', 90);
     const beastId = GameState.currentBeast;
     const beast = GameState.beasts[beastId];
     if (!beast || !beast.unlocked) return;
@@ -160,6 +173,7 @@ const Game = {
 
   // 골드 채굴
   mineGold(event) {
+    this.playSfx('reward', 130);
     const amount = 1 + Math.floor(Math.random() * 3);
     GameState.gold += amount;
     GameState.save();
@@ -182,6 +196,7 @@ const Game = {
   collectIdleExp() {
     const amount = GameState.calculateIdleReward();
     if (amount <= 0) {
+      this.playSfx('transition', 180);
       UI.showToast('아직 쌓인 경험치가 없습니다.');
       return;
     }
@@ -189,6 +204,7 @@ const Game = {
     GameState.addExp(GameState.currentBeast, amount);
     GameState.lastIdleCollect = Date.now();
     GameState.save();
+    this.playSfx('reward');
 
     UI.showToast(`${amount.toLocaleString()} EXP 수령!`);
     UI.updateTrainingDisplay();
@@ -263,6 +279,7 @@ const Game = {
 
     // 황금 고블린 출현 토스트
     UI.showToast('황금 고블린 출현!');
+    this.playSfx('combat');
 
     // moveInterval 저장해서 나중에 정리
     this._goblinMoveInterval = moveInterval;
@@ -320,6 +337,7 @@ const Game = {
 
     GameState.save();
     UI.updateGoldDisplay();
+    this.playSfx('reward');
     this.scheduleGoblin();
   },
 
@@ -328,6 +346,7 @@ const Game = {
     if (GameState.allFourAwakened() && !GameState.beasts.hwangryong.unlocked) {
       GameState.beasts.hwangryong.unlocked = true;
       GameState.save();
+      this.playSfx('flash');
       UI.showToast('황룡이 실체화되었다!');
     }
   },
@@ -335,6 +354,7 @@ const Game = {
   // 각성 시도
   tryAwaken(beastId) {
     if (!GameState.canAwaken(beastId)) return;
+    this.playSfx('flash');
 
     const beast = GameState.beasts[beastId];
     beast.awakened = true;

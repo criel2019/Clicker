@@ -1405,14 +1405,49 @@ const StoryAudio = {
   ambientOsc: null,
   ambientGain: null,
   ambientLfo: null,
+  ambientAudio: null,
+  sfxLastPlayedAt: {},
 
-  // ?좎닔蹂??곕퉬?명듃 ??(二쇳뙆?? ?뚰삎)
+  fileAudio: {
+    bgm: {
+      default: 'assets/audio/bgm/story_theme.wav'
+    },
+    sfx: {
+      page: ['assets/audio/sfx/page.wav', 'assets/audio/sfx/var/ui_beep_blip.wav'],
+      transition: ['assets/audio/sfx/transition.wav', 'assets/audio/sfx/var/sweep_down_05.wav'],
+      shake: 'assets/audio/sfx/shake.wav',
+      flash: ['assets/audio/sfx/flash.wav', 'assets/audio/sfx/var/ui_click_confirm.wav'],
+      combat: ['assets/audio/sfx/combat.wav', 'assets/audio/sfx/var/stinger_bass_04.wav'],
+      reward: ['assets/audio/sfx/reward.wav', 'assets/audio/sfx/var/ui_tonal_confirm.wav']
+    },
+    bgmRate: {
+      cheongryong: 1.0,
+      baekho: 0.98,
+      jujak: 1.03,
+      hyeonmu: 0.95,
+      hwangryong: 1.02
+    },
+    sfxGain: {
+      page: 0.38,
+      transition: 0.36,
+      shake: 0.24,
+      flash: 0.42,
+      combat: 0.42,
+      reward: 0.5
+    }
+  },
+
+  // 파일 재생 실패 시 폴백용 톤
   ambientTones: {
-    cheongryong: { freq: 110, type: 'sine', lfo: 0.15, detune: -5 },    // 源딆? 諛붾떎
-    baekho:      { freq: 82, type: 'triangle', lfo: 0.1, detune: 0 },
-    jujak:       { freq: 130, type: 'sine', lfo: 0.2, detune: 7 },
-    hyeonmu:     { freq: 73, type: 'sine', lfo: 0.08, detune: -3 },
-    hwangryong:  { freq: 98, type: 'triangle', lfo: 0.12, detune: 3 },
+    cheongryong: { freq: 110, type: 'sine', lfo: 0.15, detune: -5 },
+    baekho: { freq: 82, type: 'triangle', lfo: 0.1, detune: 0 },
+    jujak: { freq: 130, type: 'sine', lfo: 0.2, detune: 7 },
+    hyeonmu: { freq: 73, type: 'sine', lfo: 0.08, detune: -3 },
+    hwangryong: { freq: 98, type: 'triangle', lfo: 0.12, detune: 3 }
+  },
+
+  canUseFileAudio() {
+    return typeof Audio !== 'undefined';
   },
 
   getCtx() {
@@ -1423,10 +1458,56 @@ const StoryAudio = {
     return this.ctx;
   },
 
+  getBgmPath(beastId) {
+    return this.fileAudio.bgm[beastId] || this.fileAudio.bgm.default || null;
+  },
+
+  pickAudioPath(pathOrList) {
+    if (!pathOrList) return null;
+    if (!Array.isArray(pathOrList)) return pathOrList;
+    if (!pathOrList.length) return null;
+    return pathOrList[Math.floor(Math.random() * pathOrList.length)];
+  },
+
+  playSfxThrottled(type, minIntervalMs = 80) {
+    const now = Date.now();
+    const prev = this.sfxLastPlayedAt[type] || 0;
+    if (now - prev < minIntervalMs) return;
+    this.sfxLastPlayedAt[type] = now;
+    this.playSfx(type);
+  },
+
   startAmbient(beastId) {
     if (!Story.settings.soundEnabled) return;
     this.stopAmbient();
 
+    const bgmPath = this.getBgmPath(beastId);
+    if (bgmPath && this.canUseFileAudio()) {
+      const audio = new Audio(bgmPath);
+      this.ambientAudio = audio;
+      audio.loop = true;
+      audio.preload = 'auto';
+      audio.volume = Math.max(0, Math.min(1, Story.settings.volume * 0.34));
+      audio.playbackRate = this.fileAudio.bgmRate[beastId] || 1;
+
+      const failover = () => {
+        if (this.ambientAudio !== audio) return;
+        this.ambientAudio = null;
+        this.startAmbientSynth(beastId);
+      };
+
+      audio.addEventListener('error', failover, { once: true });
+      const playPromise = audio.play();
+      if (playPromise && typeof playPromise.catch === 'function') {
+        playPromise.catch(() => failover());
+      }
+      return;
+    }
+
+    this.startAmbientSynth(beastId);
+  },
+
+  startAmbientSynth(beastId) {
     const ctx = this.getCtx();
     const tone = this.ambientTones[beastId] || this.ambientTones.cheongryong;
 
@@ -1442,10 +1523,9 @@ const StoryAudio = {
     this.ambientLfo.connect(lfoGain);
     lfoGain.connect(this.ambientOsc.frequency);
 
-    // 蹂쇰ⅷ
     this.ambientGain = ctx.createGain();
     this.ambientGain.gain.value = 0;
-    this.ambientGain.gain.linearRampToValueAtTime(Story.settings.volume * 0.15, ctx.currentTime + 2);
+    this.ambientGain.gain.linearRampToValueAtTime(Story.settings.volume * 0.12, ctx.currentTime + 2);
 
     this.ambientOsc.connect(this.ambientGain);
     this.ambientGain.connect(ctx.destination);
@@ -1455,18 +1535,49 @@ const StoryAudio = {
   },
 
   stopAmbient() {
+    const audio = this.ambientAudio;
+    this.ambientAudio = null;
+    if (audio) {
+      try {
+        audio.pause();
+        audio.currentTime = 0;
+      } catch (e) {}
+    }
+
     if (this.ambientGain && this.ctx) {
-      this.ambientGain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.5);
+      this.ambientGain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.3);
     }
     setTimeout(() => {
-      if (this.ambientOsc) { try { this.ambientOsc.stop(); } catch(e) {} this.ambientOsc = null; }
-      if (this.ambientLfo) { try { this.ambientLfo.stop(); } catch(e) {} this.ambientLfo = null; }
+      if (this.ambientOsc) {
+        try { this.ambientOsc.stop(); } catch (e) {}
+        this.ambientOsc = null;
+      }
+      if (this.ambientLfo) {
+        try { this.ambientLfo.stop(); } catch (e) {}
+        this.ambientLfo = null;
+      }
       this.ambientGain = null;
-    }, 600);
+    }, 420);
   },
 
   playSfx(type) {
     if (!Story.settings.soundEnabled) return;
+    const path = this.pickAudioPath(this.fileAudio.sfx[type]);
+    if (path && this.canUseFileAudio()) {
+      const audio = new Audio(path);
+      audio.preload = 'auto';
+      const gain = this.fileAudio.sfxGain[type] || 0.5;
+      audio.volume = Math.max(0, Math.min(1, Story.settings.volume * gain));
+      const playPromise = audio.play();
+      if (playPromise && typeof playPromise.catch === 'function') {
+        playPromise.catch(() => this.playSfxSynth(type));
+      }
+      return;
+    }
+    this.playSfxSynth(type);
+  },
+
+  playSfxSynth(type) {
     const ctx = this.getCtx();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -1507,6 +1618,13 @@ const StoryAudio = {
         osc.frequency.linearRampToValueAtTime(80, ctx.currentTime + 0.4);
         gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.5);
         break;
+      case 'reward':
+        osc.type = 'triangle';
+        osc.frequency.value = 920;
+        gain.gain.value = vol * 0.1;
+        osc.frequency.linearRampToValueAtTime(1380, ctx.currentTime + 0.12);
+        gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.22);
+        break;
       default:
         gain.gain.value = 0;
     }
@@ -1524,12 +1642,12 @@ const StoryAudio = {
     const gain = ctx.createGain();
     osc.type = 'sine';
     osc.frequency.value = 600 + Math.random() * 200;
-    gain.gain.value = Story.settings.volume * 0.02;
+    gain.gain.value = Story.settings.volume * 0.017;
     gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.03);
     osc.connect(gain);
     gain.connect(ctx.destination);
     osc.start();
     osc.stop(ctx.currentTime + 0.05);
-  },
+  }
 };
 

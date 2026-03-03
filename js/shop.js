@@ -1,9 +1,21 @@
-/* ===== 상점 시스템 ===== */
+﻿/* ===== 상점 시스템 ===== */
 
 const Shop = {
   currentTab: 'affection',
 
+  playSfx(type = 'page', throttledMs = 0) {
+    if (typeof StoryAudio === 'undefined' || !StoryAudio) return;
+    if (throttledMs > 0 && typeof StoryAudio.playSfxThrottled === 'function') {
+      StoryAudio.playSfxThrottled(type, throttledMs);
+      return;
+    }
+    if (typeof StoryAudio.playSfx === 'function') {
+      StoryAudio.playSfx(type);
+    }
+  },
+
   switchTab(tab) {
+    this.playSfx('page', 120);
     this.currentTab = tab;
     const order = ['affection', 'skin', 'training'];
     document.querySelectorAll('.shop-tab').forEach((btn, idx) => {
@@ -98,6 +110,7 @@ const Shop = {
   buyAffectionItem(itemId) {
     const item = AFFECTION_ITEMS.find(i => i.id === itemId);
     if (!item || GameState.gold < item.cost) {
+      this.playSfx('transition', 120);
       UI.showToast('골드가 부족합니다.');
       return;
     }
@@ -108,6 +121,7 @@ const Shop = {
     }
     GameState.inventory.affectionItems[itemId] += 1;
     GameState.save();
+    this.playSfx('reward');
 
     UI.showToast(`${item.name} 구매 완료`);
     UI.updateGoldDisplay();
@@ -120,17 +134,20 @@ const Shop = {
 
     if (tool.costType === 'gold') {
       if (GameState.gold < tool.cost) {
+        this.playSfx('transition', 120);
         UI.showToast('골드가 부족합니다.');
         return;
       }
       GameState.gold -= tool.cost;
     } else {
+      this.playSfx('transition', 120);
       UI.showToast('유료 아이템은 현재 구매할 수 없습니다.');
       return;
     }
 
     GameState.inventory.trainingTools[toolId] = true;
     GameState.save();
+    this.playSfx('reward');
 
     UI.showToast(`${tool.name} 구매 완료, 방치 수익 증가`);
     UI.updateGoldDisplay();
