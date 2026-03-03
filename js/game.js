@@ -1,0 +1,376 @@
+/* ===== 메인 게임 로직 ===== */
+
+const Game = {
+  goblinTimer: null,
+  goblinActive: false,
+  goblinTimeout: null,
+  idleInterval: null,
+  saveInterval: null,
+
+  // 게임 초기화
+  init() {
+    GameState.init();
+    Story.loadCGs();
+    Story.loadBookmarks();
+    Story.loadReadProgress();
+    Story.loadCompletedChapters();
+    UI.renderMainScreen();
+
+    // 스토리 탭 알림 뱃지
+    setTimeout(() => Story.updateStoryBadge(), 100);
+    UI.updateGoldDisplay();
+
+    // 방치 보상 자동 갱신
+    this.idleInterval = setInterval(() => {
+      if (document.getElementById('overlay-training').classList.contains('hidden')) return;
+      UI.updateTrainingDisplay();
+    }, 1000);
+
+    // 자동 저장
+    this.saveInterval = setInterval(() => {
+      GameState.save();
+    }, 30000);
+
+    // 황금 고블린 타이머 시작
+    this.scheduleGoblin();
+
+    // 황룡 해금 체크
+    this.checkHwangryongUnlock();
+  },
+
+  // 캐릭터 탭 (메인 화면)
+  tapCharacter() {
+    const beastId = GameState.currentBeast;
+    const beast = GameState.beasts[beastId];
+    const data = BEAST_DATA[beastId];
+    if (!beast || !data) return;
+
+    // 경험치 +1
+    GameState.addExp(beastId, 1);
+
+    // Select dialogue pool based on star grade AND affection
+    const isHighAffection = beast.affectionLevel >= 7;
+    const isAbandoned = beast.abandoned;
+    let pool;
+    if (isAbandoned) {
+      pool = data.abandoned_dialogues || data.dialogues.normal;
+    } else if (isHighAffection) {
+      pool = data.dialogues.affection_high;
+    } else if (beast.starGrade >= 5) {
+      pool = data.dialogues.star_high;
+    } else if (beast.starGrade >= 3) {
+      pool = data.dialogues.star_mid;
+    } else {
+      pool = data.dialogues.normal;
+    }
+    const dialogue = pool[Math.floor(Math.random() * pool.length)];
+
+    const bubble = document.getElementById('dialogue-bubble');
+    const text = document.getElementById('dialogue-text');
+    bubble.classList.remove('hidden');
+    text.textContent = dialogue;
+
+    // 3초 후 숨김
+    clearTimeout(this._dialogueTimer);
+    this._dialogueTimer = setTimeout(() => {
+      bubble.classList.add('hidden');
+    }, 3000);
+
+    // 탭 피드백 - 캐릭터 살짝 흔들림
+    const charEl = document.getElementById('main-character');
+    charEl.style.transform = 'scale(0.95)';
+    setTimeout(() => charEl.style.transform = '', 100);
+
+    // 감정 애니메이션 재생
+    const emotion = getRandomEmotion(beastId);
+    if (emotion) {
+      const video = document.getElementById('main-char-emotion');
+      const charCgImg = document.getElementById('main-char-cg');
+      const emotionPath = getCGEmotionPath(beastId, emotion);
+      if (emotionPath && !video._playing) {
+        video._playing = true;
+        video.src = emotionPath;
+        video.classList.remove('hidden');
+        if (charCgImg) charCgImg.classList.add('hidden');
+        video.currentTime = 0;
+        video.play().catch(() => {
+          video.classList.add('hidden');
+          if (charCgImg) charCgImg.classList.remove('hidden');
+          video._playing = false;
+        });
+        video.onended = () => {
+          video.classList.add('hidden');
+          if (charCgImg) charCgImg.classList.remove('hidden');
+          video.removeAttribute('src');
+          video._playing = false;
+        };
+      }
+    }
+
+    // UI 업데이트
+    UI.renderMainScreen();
+  },
+
+  // 훈련 화면 탭
+  trainTap(event) {
+    const beastId = GameState.currentBeast;
+    const beast = GameState.beasts[beastId];
+    if (!beast || !beast.unlocked) return;
+
+    // 경험치 +1
+    GameState.addExp(beastId, 1);
+
+    // 탭 피드백 파티클
+    const container = document.getElementById('training-particles');
+    if (container) {
+      const particle = document.createElement('div');
+      particle.className = 'train-particle';
+      particle.textContent = '+1 EXP';
+      const rect = container.getBoundingClientRect();
+      const x = (event.clientX || rect.width / 2) - rect.left;
+      const y = (event.clientY || rect.height / 2) - rect.top;
+      particle.style.left = `${x - 20}px`;
+      particle.style.top = `${y}px`;
+      container.appendChild(particle);
+      setTimeout(() => particle.remove(), 600);
+    }
+
+    // 훈련 UI 업데이트
+    UI.updateTrainingDisplay();
+
+    // SD 캐릭터 반응 텍스트
+    const actions = this.getTrainingActions(beastId, beast.level);
+    const actionText = document.getElementById('training-action-text');
+    if (actionText) {
+      actionText.textContent = actions[Math.floor(Math.random() * actions.length)];
+      setTimeout(() => { if (actionText) actionText.textContent = ''; }, 1000);
+    }
+  },
+
+  // 레벨 구간별 훈련 모습 텍스트
+  getTrainingActions(beastId, level) {
+    const data = BEAST_DATA[beastId];
+    const trainingTexts = data.trainingActions || TRAINING_ACTIONS_DEFAULT;
+
+    if (level <= 50) return trainingTexts.beginner;
+    if (level <= 100) return trainingTexts.intermediate;
+    if (level <= 200) return trainingTexts.advanced;
+    return trainingTexts.master;
+  },
+
+  // 골드 채굴
+  mineGold(event) {
+    const amount = 1 + Math.floor(Math.random() * 3);
+    GameState.gold += amount;
+    GameState.save();
+    UI.updateGoldDisplay();
+
+    // Particle on main screen
+    const container = document.getElementById('gold-particles-main');
+    if (container) {
+      const particle = document.createElement('div');
+      particle.className = 'gold-particle';
+      particle.innerHTML = `<span class="ui-icon icon-coins-bag" aria-hidden="true"></span><span>+${amount}</span>`;
+      particle.style.left = `${Math.random() * 60}px`;
+      particle.style.top = `${80 + Math.random() * 40}px`;
+      container.appendChild(particle);
+      setTimeout(() => particle.remove(), 800);
+    }
+  },
+
+  // 방치 경험치 수령
+  collectIdleExp() {
+    const amount = GameState.calculateIdleReward();
+    if (amount <= 0) {
+      UI.showToast('아직 쌓인 경험치가 없습니다.');
+      return;
+    }
+
+    GameState.addExp(GameState.currentBeast, amount);
+    GameState.lastIdleCollect = Date.now();
+    GameState.save();
+
+    UI.showToast(`${amount.toLocaleString()} EXP 수령!`);
+    UI.updateTrainingDisplay();
+    UI.renderMainScreen();
+  },
+
+  // 선물하기 (호감도 아이템)
+  giveGift() {
+    const beastId = GameState.currentBeast;
+    // 가장 높은 등급 아이템부터 사용
+    const items = [...AFFECTION_ITEMS].reverse();
+    let used = false;
+
+    for (const item of items) {
+      if (GameState.inventory.affectionItems[item.id] > 0) {
+        GameState.inventory.affectionItems[item.id]--;
+        GameState.addAffection(beastId, item.value);
+        UI.showToast(`${BEAST_DATA[beastId].name}에게 ${item.name}을(를) 선물했다! 호감도 +${item.value}`);
+        used = true;
+        break;
+      }
+    }
+
+    if (!used) {
+      UI.showToast('선물할 아이템이 없습니다. 상점에서 구매하세요!');
+    }
+
+    UI.openBeastDetail(beastId);
+  },
+
+  // 황금 고블린 스케줄
+  scheduleGoblin() {
+    // 12분~60분 사이 랜덤 (시간당 1~5회)
+    const delay = (12 + Math.random() * 48) * 60 * 1000;
+    // 테스트용: 30초~90초
+    const testDelay = (30 + Math.random() * 60) * 1000;
+
+    this.goblinTimer = setTimeout(() => {
+      this.spawnGoblin();
+    }, testDelay);
+  },
+
+  // 황금 고블린 등장
+  spawnGoblin() {
+    if (this.goblinActive) return;
+    this.goblinActive = true;
+
+    const goblin = document.getElementById('golden-goblin');
+    goblin.classList.remove('hidden');
+
+    // 랜덤 위치로 이동
+    const moveGoblin = () => {
+      if (!this.goblinActive) return;
+      const zone = document.getElementById('golden-goblin-zone');
+      if (!zone) return;
+      const maxX = Math.max(zone.clientWidth - 60, 100);
+      const maxY = Math.max(zone.clientHeight - 60, 100);
+      goblin.style.left = `${Math.random() * maxX}px`;
+      goblin.style.top = `${Math.random() * maxY}px`;
+    };
+
+    moveGoblin();
+    const moveInterval = setInterval(moveGoblin, 2000);
+
+    // 1분 후 사라짐
+    this.goblinTimeout = setTimeout(() => {
+      this.goblinActive = false;
+      goblin.classList.add('hidden');
+      clearInterval(moveInterval);
+      this.scheduleGoblin();
+    }, 60000);
+
+    // 황금 고블린 출현 토스트
+    UI.showToast('황금 고블린 출현!');
+
+    // moveInterval 저장해서 나중에 정리
+    this._goblinMoveInterval = moveInterval;
+  },
+
+  // 황금 고블린 잡기
+  catchGoblin() {
+    if (!this.goblinActive) return;
+    this.goblinActive = false;
+
+    const goblin = document.getElementById('golden-goblin');
+    goblin.classList.add('hidden');
+    clearTimeout(this.goblinTimeout);
+    if (this._goblinMoveInterval) clearInterval(this._goblinMoveInterval);
+
+    // 드랍 결정
+    const totalWeight = GOBLIN_DROPS.reduce((sum, d) => sum + d.weight, 0);
+    let roll = Math.random() * totalWeight;
+    let drop = GOBLIN_DROPS[0];
+
+    for (const d of GOBLIN_DROPS) {
+      roll -= d.weight;
+      if (roll <= 0) {
+        drop = d;
+        break;
+      }
+    }
+
+    // 보상 지급
+    if (drop.type === 'affection_item') {
+      if (!GameState.inventory.affectionItems[drop.item]) {
+        GameState.inventory.affectionItems[drop.item] = 0;
+      }
+      GameState.inventory.affectionItems[drop.item]++;
+      UI.showToast(`황금 고블린 처치! ${drop.label} 획득!`);
+    } else if (drop.type === 'gold') {
+      GameState.gold += drop.amount;
+      UI.showToast(`황금 고블린 처치! ${drop.label} 획득!`);
+    } else if (drop.type === 'gacha_random') {
+      if (!GameState.gachaTickets) GameState.gachaTickets = { random: 0, select: 0 };
+      if (typeof GameState.gachaTickets === 'number') {
+        // migrate old format
+        GameState.gachaTickets = { random: GameState.gachaTickets, select: 0 };
+      }
+      GameState.gachaTickets.random++;
+      UI.showToast(`황금 고블린 처치! ${drop.label} 획득!`);
+    } else if (drop.type === 'gacha_select') {
+      if (!GameState.gachaTickets) GameState.gachaTickets = { random: 0, select: 0 };
+      if (typeof GameState.gachaTickets === 'number') {
+        GameState.gachaTickets = { random: GameState.gachaTickets, select: 0 };
+      }
+      GameState.gachaTickets.select++;
+      UI.showToast(`황금 고블린 처치! ${drop.label} 획득! (대박!)`);
+    }
+
+    GameState.save();
+    UI.updateGoldDisplay();
+    this.scheduleGoblin();
+  },
+
+  // 황룡 해금 체크
+  checkHwangryongUnlock() {
+    if (GameState.allFourAwakened() && !GameState.beasts.hwangryong.unlocked) {
+      GameState.beasts.hwangryong.unlocked = true;
+      GameState.save();
+      UI.showToast('황룡이 실체화되었다!');
+    }
+  },
+
+  // 각성 시도
+  tryAwaken(beastId) {
+    if (!GameState.canAwaken(beastId)) return;
+
+    const beast = GameState.beasts[beastId];
+    beast.awakened = true;
+    beast.hasAwakeningItem = false;
+
+    UI.showToast(`${BEAST_DATA[beastId].name} 각성!`);
+
+    // 순간이동: 5성 + 각성 완료 = 순간이동 트리거
+    // 4신수만 (황룡은 순간이동 없음)
+    if (beastId !== 'hwangryong') {
+      setTimeout(() => {
+        beast.abandoned = true;
+        UI.showToast('...갑자기 시야가 흐려진다.');
+        setTimeout(() => {
+          UI.showToast('눈을 떠보니 다른 곳이다. 작별 인사도 못 했다...');
+          // 다음 해금 안 된 신수로 전환, 없으면 그대로
+          const nextBeast = Object.keys(BEAST_DATA).find(id =>
+            id !== beastId && id !== 'hwangryong' &&
+            GameState.beasts[id] && GameState.beasts[id].unlocked && !GameState.beasts[id].abandoned
+          );
+          if (nextBeast) {
+            GameState.currentBeast = nextBeast;
+          }
+          GameState.save();
+          UI.renderMainScreen();
+        }, 2000);
+      }, 1500);
+    }
+
+    this.checkHwangryongUnlock();
+    GameState.save();
+    UI.renderMainScreen();
+  }
+};
+
+// 게임 시작
+window.addEventListener('DOMContentLoaded', () => {
+  Game.init();
+});

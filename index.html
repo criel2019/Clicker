@@ -1,0 +1,440 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>신수를 키우는 게임</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- ?곷떒 諛?-->
+    <header id="top-bar">
+      <div id="player-info">
+        <span id="player-level">Lv.1</span>
+        <span id="current-beast-name">청룡</span>
+      </div>
+      <div id="currency-display">
+        <span id="gold-display"><span class="ui-icon icon-coins-bag" aria-hidden="true"></span><span class="gold-value">0</span></span>
+      </div>
+    </header>
+
+    <!-- ?곗륫 ?ъ씠??踰꾪듉 -->
+    <div id="side-buttons">
+      <button class="side-btn" id="btn-shop" onclick="UI.openShop()">
+        <span class="side-icon ui-icon icon-shop-building" aria-hidden="true"></span>
+        <span class="side-label">상점</span>
+      </button>
+      <button class="side-btn" id="btn-background" onclick="UI.openBackgrounds()">
+        <span class="side-icon ui-icon icon-image-outline" aria-hidden="true"></span>
+        <span class="side-label">배경</span>
+      </button>
+      <button class="side-btn" id="btn-gold-mine" onclick="Game.mineGold(event)">
+        <span class="side-icon ui-icon icon-coins-plus" aria-hidden="true"></span>
+        <span class="side-label">골드</span>
+      </button>
+      <button class="side-btn" id="btn-training" onclick="UI.openTraining()">
+        <span class="side-icon ui-icon icon-weights" aria-hidden="true"></span>
+        <span class="side-label">훈련</span>
+      </button>
+    </div>
+
+    <!-- 硫붿씤 而⑦뀗痢??곸뿭 -->
+    <main id="content-area">
+      <!-- ??1: 硫붿씤 (罹먮┃???명꽣?숈뀡) -->
+      <section id="tab-main" class="tab-content active">
+        <div id="main-scene">
+          <div id="main-scene-bg"></div>
+          <div id="gold-particles-main"></div>
+          <!-- ?쒖냼????-->
+          <div id="tiny-god" title="Tiny God">
+            <div class="tiny-god-sprite"><span class="ui-icon icon-star" aria-hidden="true"></span></div>
+          </div>
+          <!-- 硫붿씤 罹먮┃??-->
+          <div id="main-character" onclick="Game.tapCharacter()">
+            <div id="char-sprite" class="character-placeholder">
+              <img id="main-char-cg" class="char-cg hidden" src="" alt="">
+              <div class="char-img char-fallback" id="main-char-fallback">청</div>
+              <video id="main-char-emotion" class="char-emotion hidden" muted playsinline></video>
+              <div class="char-stars" id="main-char-stars">★</div>
+            </div>
+          </div>
+          <!-- ???踰꾨툝 -->
+          <div id="dialogue-bubble" class="hidden">
+            <p id="dialogue-text"></p>
+          </div>
+          <!-- 罹먮┃???좏깮 (踰꾨젮吏??좎닔 ?ы븿) -->
+          <div id="beast-selector">
+            <div class="beast-select-scroll" id="beast-select-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ??2: ?ㅽ넗由?-->
+      <section id="tab-story" class="tab-content">
+        <div id="story-screen">
+          <!-- 梨뺥꽣 ?좏깮 ?붾㈃ -->
+          <div id="chapter-select">
+            <div id="chapter-select-header">
+              <h2 id="chapter-select-title">스토리</h2>
+              <button id="chapter-gallery-btn" onclick="Story.openGallery()">갤러리</button>
+            </div>
+            <div id="chapter-beast-tabs"></div>
+            <div id="chapter-progress-bar"><div id="chapter-progress-fill"></div></div>
+            <div id="chapter-progress-text"></div>
+            <div id="chapter-list"></div>
+          </div>
+          <!-- 梨뺥꽣 ?대━??寃곌낵 -->
+          <div id="chapter-result" class="hidden"></div>
+          <!-- ?ㅽ넗由??띿뒪???곸뿭 -->
+          <div id="story-text-area" class="hidden">
+            <!-- ?μ냼蹂?諛곌꼍 -->
+            <div id="story-scene-bg"></div>
+            <!-- ?곕퉬?명듃 愿묒썝 -->
+            <div id="story-ambient-glow"></div>
+            <!-- 遺???뚰떚??-->
+            <div id="story-particles"></div>
+            <!-- ?μ떇 ?꾨젅??-->
+            <div id="story-frame"></div>
+            <!-- 梨뺥꽣 ??댄? 移대뱶 -->
+            <div id="story-chapter-title">
+              <span class="chapter-number"></span>
+              <div class="chapter-line"></div>
+              <span class="chapter-name"></span>
+            </div>
+            <!-- ?좎뵪/遺꾩쐞湲??ㅻ쾭?덉씠 -->
+            <div id="story-weather"></div>
+            <!-- ?μ냼 ?쇰꺼 -->
+            <div id="story-location-label"></div>
+            <!-- 罹먮┃???ㅻ（??-->
+            <div id="story-character">
+              <div id="story-char-aura"></div>
+              <div id="story-char-symbol"></div>
+              <div id="story-char-expression"></div>
+            </div>
+            <!-- 而룹뵮 ?대?吏 -->
+            <div id="story-cutscene" class="hidden">
+              <img id="story-cutscene-img" src="" alt="">
+            </div>
+            <!-- ?붾㈃ ?곗텧 ?ㅻ쾭?덉씠 -->
+            <div id="story-effect-overlay"></div>
+            <div id="story-hit-vfx" class="hit-vfx-layer" aria-hidden="true"></div>
+            <!-- ?띿뒪??諛뺤뒪 (?곗튂濡?吏꾪뻾) -->
+            <div id="story-text-box" onclick="Story.next()">
+              <p id="story-speaker"></p>
+              <p id="story-text"></p>
+              <!-- 吏꾪뻾瑜?諛?-->
+              <div id="story-progress-bar">
+                <div id="story-progress-fill"></div>
+              </div>
+            </div>
+          </div>
+          <!-- ?꾪닾 UI (???깆옣 ?? -->
+          <div id="combat-ui" class="hidden">
+            <div id="enemy-status">
+              <span id="enemy-name"></span>
+              <span id="enemy-hp-text"></span>
+            </div>
+            <div class="combat-hp-wrap enemy">
+              <div class="combat-hp-label">적 체력</div>
+              <div class="combat-hp-bar">
+                <div id="enemy-hp-fill"></div>
+              </div>
+            </div>
+            <div class="combat-hp-wrap player">
+              <div class="combat-hp-row">
+                <span class="combat-hp-label">나의 기력</span>
+                <span id="player-hp-text"></span>
+              </div>
+              <div class="combat-hp-bar">
+                <div id="player-hp-fill"></div>
+              </div>
+            </div>
+            <div id="combat-rhythm-state">
+              <span id="combat-rhythm-text">리듬 x1.00</span>
+              <span id="combat-focus-text">집중 0%</span>
+            </div>
+            <div id="combat-rhythm-guide">한 박자당 1회 판정. 파란 구간 PERFECT / 초록 구간 GOOD</div>
+            <div class="rhythm-meter" id="combat-rhythm-meter">
+              <div class="rhythm-zone rhythm-good"></div>
+              <div class="rhythm-zone rhythm-perfect"></div>
+              <div class="rhythm-cursor" id="combat-rhythm-cursor"></div>
+            </div>
+            <div id="combat-focus-bar">
+              <div id="combat-focus-fill"></div>
+            </div>
+            <div id="combat-intent"></div>
+            <div id="combat-feedback" aria-live="polite"></div>
+            <div id="combat-log"></div>
+            <div id="combat-actions">
+              <button id="combat-tap-btn" onclick="Combat.tap()"><span class="btn-icon ui-icon icon-sword" aria-hidden="true"></span><span>공격!</span></button>
+              <button id="combat-parry-btn" onclick="Combat.parry()" disabled>패링 대기</button>
+              <button id="combat-skill-btn" onclick="Combat.useSkill()" disabled>각성 일격 (0%)</button>
+            </div>
+          </div>
+          <!-- ?ㅽ궢 ?몃뵒耳?댄꽣 -->
+          <div id="skip-indicator">SKIP ON</div>
+          <!-- ?ㅽ넗由?而⑦듃濡?諛?-->
+          <div id="story-controls">
+            <button class="story-ctrl-btn" id="story-back-btn" onclick="Story.backToSelect()"><span class="ctrl-icon ui-icon icon-arrow-left" aria-hidden="true"></span></button>
+            <button class="story-ctrl-btn" id="story-log-btn" onclick="Story.toggleLog()"><span class="ctrl-icon ui-icon icon-list" aria-hidden="true"></span></button>
+            <button class="story-ctrl-btn" id="story-auto-btn" onclick="Story.toggleAuto()">자동</button>
+            <button class="story-ctrl-btn" id="story-skip-btn" onclick="Story.toggleSkip()">스킵</button>
+            <div class="ctrl-spacer"></div>
+            <button class="story-ctrl-btn" id="story-sound-btn" onclick="Story.toggleSound()"><span class="ctrl-icon ui-icon icon-sound" aria-hidden="true"></span></button>
+            <button class="story-ctrl-btn" id="story-settings-btn" onclick="Story.toggleSettings()"><span class="ctrl-icon ui-icon icon-settings" aria-hidden="true"></span></button>
+            <button id="story-next-btn" onclick="Story.next()">다음 ▶</button>
+          </div>
+          <!-- ?띿뒪??濡쒓렇 ?⑤꼸 -->
+          <div id="story-log-panel" class="hidden">
+            <div id="story-log-header">
+              <span>대화 기록</span>
+              <button onclick="Story.toggleLog()">✕</button>
+            </div>
+            <div id="story-log-content"></div>
+          </div>
+          <!-- ?ㅼ젙 ?⑤꼸 -->
+          <div id="story-settings-panel" class="hidden">
+            <div id="story-settings-header">
+              <span>스토리 설정</span>
+              <button onclick="Story.toggleSettings()">✕</button>
+            </div>
+            <div id="story-settings-body">
+              <div class="setting-row">
+                <label>텍스트 속도</label>
+                <input type="range" min="1" max="5" value="3" oninput="Story.setTextSpeed(this.value)">
+                <span class="setting-labels"><span>빠름</span><span>느림</span></span>
+              </div>
+              <div class="setting-row">
+                <label>자동 재생 속도</label>
+                <input type="range" min="1" max="5" value="3" oninput="Story.setAutoSpeed(this.value)">
+                <span class="setting-labels"><span>빠름</span><span>느림</span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ??3: ?좎닔 -->
+      <section id="tab-beasts" class="tab-content">
+        <div id="beast-cards-container">
+          <h2 class="section-title">신수 목록</h2>
+          <div id="beast-card-list"></div>
+        </div>
+        <!-- ?좎닔 ?곸꽭 -->
+        <div id="beast-detail" class="hidden">
+          <button class="back-btn" onclick="UI.closeBeastDetail()">← 돌아가기</button>
+          <div id="beast-detail-card">
+            <div id="detail-illustration" class="character-placeholder"></div>
+            <h3 id="detail-name"></h3>
+            <div id="detail-stars"></div>
+            <div id="detail-level"></div>
+            <p id="detail-description"></p>
+            <div id="detail-tmi-list"></div>
+          </div>
+          <div id="detail-affection">
+            <h4>호감도</h4>
+            <div id="affection-bar-container">
+              <div id="affection-bar"></div>
+              <span id="affection-level-text"></span>
+            </div>
+            <button id="gift-btn" onclick="Game.giveGift()"><span class="btn-icon ui-icon icon-gift" aria-hidden="true"></span><span class="gift-label">선물하기</span></button>
+          </div>
+          <div id="detail-stories" class="hidden">
+            <h4>개인 스토리</h4>
+            <div id="personal-story-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ??4: ??-->
+      <section id="tab-tower" class="tab-content">
+        <div id="tower-screen">
+          <h2 class="section-title">무한 탑</h2>
+          <div id="tower-char-select"></div>
+          <div id="tower-info" class="hidden">
+            <div id="tower-floor-display"></div>
+            <div id="tower-best-record"></div>
+            <button id="tower-start-btn" onclick="Tower.startBattle()">도전!</button>
+          </div>
+          <div id="tower-battle" class="hidden">
+            <div id="tower-hit-vfx" class="hit-vfx-layer" aria-hidden="true"></div>
+            <div id="tower-enemy-info"></div>
+            <div class="tower-hp-wrap enemy">
+              <div class="tower-hp-label">적 체력</div>
+              <div class="tower-hp-bar"><div id="tower-enemy-hp-fill"></div></div>
+            </div>
+            <div class="tower-hp-wrap player">
+              <div class="tower-hp-row">
+                <span class="tower-hp-label">나의 기력</span>
+                <span id="tower-player-hp-text"></span>
+              </div>
+              <div class="tower-hp-bar"><div id="tower-player-hp-fill"></div></div>
+            </div>
+            <div id="tower-rhythm-state">
+              <span id="tower-rhythm-text">리듬 x1.00</span>
+              <span id="tower-focus-text">집중 0%</span>
+            </div>
+            <div id="tower-rhythm-guide">한 박자당 1회 판정. 파란 구간 PERFECT / 초록 구간 GOOD</div>
+            <div class="rhythm-meter" id="tower-rhythm-meter">
+              <div class="rhythm-zone rhythm-good"></div>
+              <div class="rhythm-zone rhythm-perfect"></div>
+              <div class="rhythm-cursor" id="tower-rhythm-cursor"></div>
+            </div>
+            <div id="tower-focus-bar"><div id="tower-focus-fill"></div></div>
+            <div id="tower-intent"></div>
+            <div id="tower-feedback" aria-live="polite"></div>
+            <div id="tower-combat-log"></div>
+            <div id="tower-actions">
+              <button id="tower-tap-btn" onclick="Tower.tap()"><span class="btn-icon ui-icon icon-sword" aria-hidden="true"></span><span>공격!</span></button>
+              <button id="tower-parry-btn" onclick="Tower.parry()" disabled>패링 대기</button>
+              <button id="tower-skill-btn" onclick="Tower.useSkill()" disabled>각성 일격 (0%)</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- ?ㅻ쾭?덉씠??-->
+    <!-- ?곸젏 -->
+    <div id="overlay-shop" class="overlay hidden">
+      <div class="overlay-content">
+        <div class="overlay-header">
+          <h2>상점</h2>
+          <button class="close-btn" onclick="UI.closeOverlay('shop')">✕</button>
+        </div>
+        <div id="shop-tabs">
+          <button class="shop-tab active" onclick="Shop.switchTab('affection')">호감도 아이템</button>
+          <button class="shop-tab" onclick="Shop.switchTab('skin')">스킨</button>
+          <button class="shop-tab" onclick="Shop.switchTab('training')">훈련도구</button>
+        </div>
+        <div id="shop-items"></div>
+      </div>
+    </div>
+
+    <!-- 諛곌꼍 -->
+    <div id="overlay-background" class="overlay hidden">
+      <div class="overlay-content">
+        <div class="overlay-header">
+          <h2>배경 변경</h2>
+          <div class="overlay-header-actions">
+            <button id="bg-refresh-btn" onclick="UI.refreshBackgroundOptions()">새로고침</button>
+            <button class="close-btn" onclick="UI.closeOverlay('background')">✕</button>
+          </div>
+        </div>
+        <p id="bg-picker-help">湲곕낯 寃쎈줈: <code>assets/cg/bg</code></p>
+        <div id="bg-picker-grid"></div>
+      </div>
+    </div>
+
+    <!-- ?덈젴 -->
+    <div id="overlay-training" class="overlay hidden">
+      <div class="overlay-content training-fullscreen">
+        <!-- ?곷떒 諛?-->
+        <div class="training-top-bar">
+          <button class="back-btn" onclick="UI.closeOverlay('training')">← 돌아가기</button>
+          <span id="training-beast-name"></span>
+          <button class="training-tool-btn" onclick="UI.toggleTrainingTools()"><span class="btn-icon ui-icon icon-tools" aria-hidden="true"></span><span>도구</span></button>
+        </div>
+
+        <!-- ?덈젴 硫붿씤 ?곸뿭 -->
+        <div id="training-main-area" onclick="Game.trainTap(event)">
+          <!-- 諛곌꼍 -->
+          <div id="training-bg"></div>
+
+          <!-- ?좎닔 SD ?덈젴 紐⑥뒿 -->
+          <div id="training-character">
+            <div id="training-char-sprite" class="training-sprite"></div>
+            <div id="training-action-text"></div>
+          </div>
+
+          <!-- 寃쏀뿕移?諛?-->
+          <div id="training-exp-bar-container">
+            <div id="training-exp-bar-bg">
+              <div id="training-exp-bar-fill"></div>
+            </div>
+            <span id="training-exp-text">Lv.1 | 0/50 EXP</span>
+          </div>
+
+          <!-- 諛⑹튂 ?섏씡 ?뺣낫 -->
+          <div id="training-idle-info">
+            <span id="training-idle-rate">방치 수익: 0.5 EXP/초</span>
+            <span id="training-idle-accumulated">누적: 0 EXP</span>
+            <button id="training-collect-btn" onclick="Game.collectIdleExp()">수령</button>
+          </div>
+
+          <!-- ???쇰뱶諛??뚰떚??-->
+          <div id="training-particles"></div>
+
+          <!-- 황금 고블린 영역 -->
+          <div id="golden-goblin-zone">
+            <div id="golden-goblin" class="hidden" onclick="Game.catchGoblin()">
+              <span class="goblin-sprite"><span class="ui-icon icon-coins-plus" aria-hidden="true"></span></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 훈련도구 패널 (슬라이드) -->
+        <div id="training-tools-panel" class="hidden">
+          <div id="training-tools-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CG 갤러리 -->
+    <div id="overlay-gallery" class="overlay hidden">
+      <div class="overlay-content">
+        <div class="overlay-header">
+          <h2>CG 갤러리</h2>
+          <button class="close-btn" onclick="UI.closeOverlay('gallery')">✕</button>
+        </div>
+        <div id="gallery-beast-tabs"></div>
+        <div id="gallery-count"></div>
+        <div id="gallery-grid"></div>
+      </div>
+    </div>
+
+    <!-- CG 뷰어 (전체화면) -->
+    <div id="cg-viewer" class="hidden" onclick="Story.closeCGViewer()">
+      <img id="cg-viewer-img" src="" alt="">
+      <div id="cg-viewer-caption"></div>
+      <div id="cg-viewer-close">탭하면 닫기</div>
+    </div>
+
+    <!-- 하단 탭바 -->
+    <nav id="tab-bar">
+      <button class="tab-btn active" data-tab="main" onclick="UI.switchTab('main')">
+        <span class="tab-icon ui-icon icon-home" aria-hidden="true"></span>
+        <span class="tab-label">메인</span>
+      </button>
+      <button class="tab-btn" data-tab="story" onclick="UI.switchTab('story')">
+        <span class="tab-icon ui-icon icon-book-opened" aria-hidden="true"></span>
+        <span class="tab-label">스토리</span>
+      </button>
+      <button class="tab-btn" data-tab="beasts" onclick="UI.switchTab('beasts')">
+        <span class="tab-icon ui-icon icon-badge-star" aria-hidden="true"></span>
+        <span class="tab-label">신수</span>
+      </button>
+      <button class="tab-btn" data-tab="tower" onclick="UI.switchTab('tower')">
+        <span class="tab-icon ui-icon icon-crown-stars" aria-hidden="true"></span>
+        <span class="tab-label">탑</span>
+      </button>
+    </nav>
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/combat.js"></script>
+  <script src="js/story.js"></script>
+  <script src="js/story_cheongryong.js"></script>
+  <script src="js/story_baekho.js"></script>
+  <script src="js/story_jujak.js"></script>
+  <script src="js/story_hyeonmu.js"></script>
+  <script src="js/story_hwangryong.js"></script>
+  <script src="js/tower.js"></script>
+  <script src="js/shop.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
+

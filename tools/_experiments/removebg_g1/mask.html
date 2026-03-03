@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mask Overlay Viewer</title>
+  <style>
+    :root {
+      --bg: #101216;
+      --panel: #181c22;
+      --line: #2a3140;
+      --text: #e6e9ef;
+      --muted: #9aa5b4;
+      --acc: #5fb2ff;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: "Segoe UI", sans-serif; }
+    .app {
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      height: 100%;
+      gap: 0;
+    }
+    .stage {
+      position: relative;
+      min-width: 0;
+      overflow: auto;
+      padding: 16px;
+    }
+    .checker {
+      width: 100%;
+      height: 100%;
+      min-height: 320px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background:
+        linear-gradient(45deg, #20252d 25%, transparent 25%) 0 0/24px 24px,
+        linear-gradient(-45deg, #20252d 25%, transparent 25%) 0 0/24px 24px,
+        linear-gradient(45deg, transparent 75%, #20252d 75%) 0 0/24px 24px,
+        linear-gradient(-45deg, transparent 75%, #20252d 75%) 0 0/24px 24px,
+        #161a21;
+      display: grid;
+      place-items: center;
+      overflow: auto;
+    }
+    canvas {
+      max-width: 100%;
+      max-height: 100%;
+      display: block;
+      image-rendering: auto;
+      background: transparent;
+    }
+    .panel {
+      border-left: 1px solid var(--line);
+      background: var(--panel);
+      padding: 14px;
+      overflow: auto;
+    }
+    .head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .head h1 {
+      margin: 0;
+      font-size: 16px;
+      letter-spacing: 0.2px;
+      font-weight: 700;
+    }
+    .muted { color: var(--muted); font-size: 12px; }
+    .btns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    button {
+      border: 1px solid var(--line);
+      background: #1f2530;
+      color: var(--text);
+      border-radius: 8px;
+      padding: 8px 10px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    button:hover { border-color: var(--acc); }
+    .ctrl {
+      margin-bottom: 12px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px;
+      background: #161b23;
+    }
+    .ctrl label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .ctrl input[type="range"] { width: 100%; }
+    .layers {
+      display: grid;
+      gap: 8px;
+    }
+    .row {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 8px;
+      background: #141922;
+    }
+    .row.missing { opacity: 0.45; }
+    .row-top {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .row .name {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .chip {
+      border: 1px solid var(--line);
+      color: var(--muted);
+      border-radius: 999px;
+      font-size: 11px;
+      padding: 2px 8px;
+    }
+    .row-controls {
+      display: grid;
+      grid-template-columns: 1fr 84px;
+      gap: 8px;
+      align-items: center;
+    }
+    select {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: #0f131a;
+      color: var(--text);
+      border-radius: 7px;
+      padding: 4px 6px;
+      font-size: 12px;
+    }
+    .foot {
+      margin-top: 10px;
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <section class="stage">
+      <div class="checker">
+        <canvas id="view"></canvas>
+      </div>
+    </section>
+    <aside class="panel">
+      <div class="head">
+        <h1>Mask Overlay</h1>
+        <span id="status" class="muted">loading...</span>
+      </div>
+
+      <div class="btns">
+        <button id="presetAlpha">Preset: alpha</button>
+        <button id="presetSpill">Preset: spill</button>
+        <button id="presetFinal">Preset: final</button>
+        <button id="btnExport">Export png</button>
+      </div>
+
+      <div class="ctrl">
+        <label for="zoom">Zoom</label>
+        <input id="zoom" type="range" min="20" max="220" step="1" value="100" />
+      </div>
+
+      <div id="layers" class="layers"></div>
+
+      <div class="foot">
+        Base folder: <code>tools/_experiments/removebg_g1</code><br />
+        Files: <code>src.png</code>, <code>res.png</code>, <code>m/*.png</code>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    const LAYERS = [
+      { id: "src",  name: "src",  file: "src.png",      type: "rgba",   visible: true,  opacity: 1.00, blend: "source-over" },
+      { id: "a0",   name: "a0",   file: "m/01_a0.png",  type: "mask",   color: "#ff5a66", visible: false, opacity: 0.45, blend: "screen" },
+      { id: "a1",   name: "a1",   file: "m/02_a1.png",  type: "mask",   color: "#ffa452", visible: false, opacity: 0.45, blend: "screen" },
+      { id: "ap",   name: "ap",   file: "m/03_ap.png",  type: "mask",   color: "#f4d35e", visible: false, opacity: 0.45, blend: "screen" },
+      { id: "a2",   name: "a2",   file: "m/04_a2.png",  type: "mask",   color: "#57cc99", visible: true,  opacity: 0.36, blend: "screen" },
+      { id: "a3",   name: "a3",   file: "m/05_a3.png",  type: "mask",   color: "#4ea8de", visible: true,  opacity: 0.36, blend: "screen" },
+      { id: "face", name: "face", file: "m/06_face.png",type: "mask",   color: "#ffd166", visible: false, opacity: 0.55, blend: "screen" },
+      { id: "gs",   name: "gsrc", file: "m/07_gsrc.png",type: "rgba",   visible: false, opacity: 0.78, blend: "screen" },
+      { id: "gf",   name: "gfg",  file: "m/08_gfg.png", type: "rgba",   visible: false, opacity: 0.78, blend: "screen" },
+      { id: "apre", name: "a_pre",file: "m/09_a3_pre_step.png", type: "mask", color: "#e76f51", visible: false, opacity: 0.42, blend: "screen" },
+      { id: "ad",   name: "a_delta", file: "m/10_a_step_delta.png", type: "mask", color: "#2a9d8f", visible: false, opacity: 0.55, blend: "screen" },
+      { id: "res",  name: "res",  file: "res.png",      type: "rgba",   visible: false, opacity: 1.00, blend: "source-over" }
+    ];
+
+    const canvas = document.getElementById("view");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    const statusEl = document.getElementById("status");
+    const layersRoot = document.getElementById("layers");
+    const zoomEl = document.getElementById("zoom");
+
+    const blendMap = {
+      normal: "source-over",
+      screen: "screen",
+      multiply: "multiply"
+    };
+
+    const state = {
+      w: 0,
+      h: 0,
+      zoom: 1,
+      images: new Map(),
+      cache: new Map()
+    };
+
+    function loadImage(path) {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve({ ok: true, img });
+        img.onerror = () => resolve({ ok: false, img: null });
+        img.src = path + "?v=" + Date.now();
+      });
+    }
+
+    function cacheKey(layer) {
+      return `${layer.id}:${layer.type}:${layer.color || ""}`;
+    }
+
+    function makeTinted(layer, img) {
+      const key = cacheKey(layer);
+      if (state.cache.has(key)) return state.cache.get(key);
+
+      const off = document.createElement("canvas");
+      off.width = state.w;
+      off.height = state.h;
+      const octx = off.getContext("2d");
+      octx.clearRect(0, 0, state.w, state.h);
+      if (layer.type === "mask") {
+        octx.drawImage(img, 0, 0, state.w, state.h);
+        octx.globalCompositeOperation = "multiply";
+        octx.fillStyle = layer.color || "#4ea8de";
+        octx.fillRect(0, 0, state.w, state.h);
+        octx.globalCompositeOperation = "source-over";
+      } else if (layer.type === "signed") {
+        octx.filter = "contrast(165%) brightness(108%)";
+        octx.drawImage(img, 0, 0, state.w, state.h);
+        octx.filter = "none";
+      } else {
+        octx.drawImage(img, 0, 0, state.w, state.h);
+      }
+      state.cache.set(key, off);
+      return off;
+    }
+
+    function draw() {
+      if (!state.w || !state.h) return;
+      canvas.width = state.w;
+      canvas.height = state.h;
+      canvas.style.width = `${Math.round(state.w * state.zoom)}px`;
+      canvas.style.height = `${Math.round(state.h * state.zoom)}px`;
+
+      ctx.clearRect(0, 0, state.w, state.h);
+      for (const layer of LAYERS) {
+        if (!layer.visible) continue;
+        const entry = state.images.get(layer.id);
+        if (!entry || !entry.ok || !entry.img) continue;
+
+        ctx.globalCompositeOperation = layer.blend || "source-over";
+        ctx.globalAlpha = layer.opacity;
+        if (layer.type === "rgba") {
+          ctx.drawImage(entry.img, 0, 0, state.w, state.h);
+        } else {
+          const tinted = makeTinted(layer, entry.img);
+          ctx.drawImage(tinted, 0, 0, state.w, state.h);
+        }
+      }
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = "source-over";
+    }
+
+    function makeLayerRow(layer) {
+      const row = document.createElement("div");
+      row.className = "row";
+      row.dataset.layerId = layer.id;
+      row.innerHTML = `
+        <div class="row-top">
+          <input type="checkbox" ${layer.visible ? "checked" : ""} />
+          <div class="name">${layer.name}</div>
+          <div class="chip">${layer.type}</div>
+        </div>
+        <div class="row-controls">
+          <input type="range" min="0" max="100" step="1" value="${Math.round(layer.opacity * 100)}" />
+          <select>
+            <option value="normal">normal</option>
+            <option value="screen">screen</option>
+            <option value="multiply">multiply</option>
+          </select>
+        </div>
+      `;
+
+      const [chk] = row.querySelectorAll("input[type=checkbox]");
+      const [rng] = row.querySelectorAll("input[type=range]");
+      const sel = row.querySelector("select");
+
+      const blendName = Object.entries(blendMap).find(([, v]) => v === layer.blend)?.[0] || "normal";
+      sel.value = blendName;
+
+      chk.addEventListener("change", () => {
+        layer.visible = chk.checked;
+        draw();
+      });
+      rng.addEventListener("input", () => {
+        layer.opacity = Number(rng.value) / 100;
+        draw();
+      });
+      sel.addEventListener("change", () => {
+        layer.blend = blendMap[sel.value] || "source-over";
+        draw();
+      });
+
+      layersRoot.appendChild(row);
+      return row;
+    }
+
+    function applyPreset(kind) {
+      const on = new Set();
+      if (kind === "alpha") ["src", "a0", "a1", "ap", "a2", "a3", "face"].forEach((k) => on.add(k));
+      if (kind === "spill") ["src", "a3", "gs", "gf", "face"].forEach((k) => on.add(k));
+      if (kind === "final") ["src", "a3", "apre", "ad", "res"].forEach((k) => on.add(k));
+
+      for (const layer of LAYERS) {
+        layer.visible = on.has(layer.id);
+      }
+
+      for (const row of layersRoot.querySelectorAll(".row")) {
+        const id = row.dataset.layerId;
+        const layer = LAYERS.find((x) => x.id === id);
+        const chk = row.querySelector("input[type=checkbox]");
+        chk.checked = Boolean(layer && layer.visible);
+      }
+
+      draw();
+    }
+
+    async function init() {
+      for (const layer of LAYERS) {
+        makeLayerRow(layer);
+      }
+
+      const loaded = await Promise.all(LAYERS.map(async (layer) => {
+        const res = await loadImage(layer.file);
+        state.images.set(layer.id, res);
+        return { id: layer.id, ...res };
+      }));
+
+      let first = loaded.find((x) => x.ok && x.img && x.id === "src");
+      if (!first) first = loaded.find((x) => x.ok && x.img);
+
+      if (!first || !first.img) {
+        statusEl.textContent = "no image";
+        return;
+      }
+
+      state.w = first.img.naturalWidth;
+      state.h = first.img.naturalHeight;
+
+      for (const item of loaded) {
+        const row = layersRoot.querySelector(`.row[data-layer-id="${item.id}"]`);
+        if (!row) continue;
+        if (!item.ok) row.classList.add("missing");
+      }
+
+      const okCount = loaded.filter((x) => x.ok).length;
+      statusEl.textContent = `${okCount}/${LAYERS.length} loaded`;
+      draw();
+    }
+
+    zoomEl.addEventListener("input", () => {
+      state.zoom = Number(zoomEl.value) / 100;
+      draw();
+    });
+
+    document.getElementById("presetAlpha").addEventListener("click", () => applyPreset("alpha"));
+    document.getElementById("presetSpill").addEventListener("click", () => applyPreset("spill"));
+    document.getElementById("presetFinal").addEventListener("click", () => applyPreset("final"));
+    document.getElementById("btnExport").addEventListener("click", () => {
+      try {
+        const a = document.createElement("a");
+        a.href = canvas.toDataURL("image/png");
+        a.download = "mask_overlay.png";
+        a.click();
+      } catch (err) {
+        statusEl.textContent = "export blocked (file:// security)";
+        console.warn(err);
+      }
+    });
+
+    init();
+  </script>
+</body>
+</html>
