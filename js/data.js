@@ -466,6 +466,7 @@ function getCGEmotionPath(beastId, emotion) {
   const beast = (typeof GameState !== 'undefined') ? GameState.beasts[beastId] : null;
   if (!beast) return null;
   const stage = getGrowthStage(beast.starGrade, beast.awakened);
+  // Emotion videos are delivered as alpha WebM.
   return `assets/cg/${folder}/${stage}/${emotion}_main.webm`;
 }
 

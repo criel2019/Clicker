@@ -26,6 +26,7 @@ const Game = {
     Story.loadReadProgress();
     Story.loadCompletedChapters();
     UI.renderMainScreen();
+    UI.initInteractions();
 
     // 스토리 탭 알림 뱃지
     setTimeout(() => Story.updateStoryBadge(), 100);
@@ -98,23 +99,41 @@ const Game = {
     if (emotion) {
       const video = document.getElementById('main-char-emotion');
       const charCgImg = document.getElementById('main-char-cg');
+      const charFallback = document.getElementById('main-char-fallback');
       const emotionPath = getCGEmotionPath(beastId, emotion);
-      if (emotionPath && !video._playing) {
+      if (video && emotionPath && !video._playing) {
+        const hideStandingForEmotion = () => {
+          if (charCgImg) charCgImg.classList.add('emotion-hidden');
+          if (charFallback) charFallback.classList.add('emotion-hidden');
+        };
+        const restoreStandingAfterEmotion = () => {
+          if (charCgImg) charCgImg.classList.remove('emotion-hidden');
+          if (charFallback) charFallback.classList.remove('emotion-hidden');
+        };
+        const finalizeEmotionVideo = () => {
+          video.onended = null;
+          video.classList.add('hidden');
+          video.classList.remove('fading-out');
+          video.removeAttribute('src');
+          video.style.opacity = '';
+          video._playing = false;
+        };
+
         video._playing = true;
         video.src = emotionPath;
-        video.classList.remove('hidden');
-        if (charCgImg) charCgImg.classList.add('hidden');
+        video.classList.remove('hidden', 'fading-out');
+        video.style.opacity = '0';
+        hideStandingForEmotion();
         video.currentTime = 0;
+        requestAnimationFrame(() => { video.style.opacity = '1'; });
         video.play().catch(() => {
-          video.classList.add('hidden');
-          if (charCgImg) charCgImg.classList.remove('hidden');
-          video._playing = false;
+          restoreStandingAfterEmotion();
+          finalizeEmotionVideo();
         });
         video.onended = () => {
-          video.classList.add('hidden');
-          if (charCgImg) charCgImg.classList.remove('hidden');
-          video.removeAttribute('src');
-          video._playing = false;
+          restoreStandingAfterEmotion();
+          video.classList.add('fading-out');
+          setTimeout(finalizeEmotionVideo, 140);
         };
       }
     }

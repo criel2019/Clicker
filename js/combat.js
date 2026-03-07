@@ -94,6 +94,26 @@ const Combat = {
   parryFailCount: 0,
   fightStartedAt: 0,
 
+  playSfx(type, throttledMs = 0) {
+    if (typeof StoryAudio === 'undefined' || !StoryAudio) return;
+    if (typeof StoryAudio.playCombatSfx === 'function') {
+      StoryAudio.playCombatSfx(type, throttledMs);
+      return;
+    }
+    if (throttledMs > 0 && typeof StoryAudio.playSfxThrottled === 'function') {
+      StoryAudio.playSfxThrottled(type, throttledMs);
+      return;
+    }
+    if (typeof StoryAudio.playSfx === 'function') {
+      StoryAudio.playSfx(type);
+    }
+  },
+
+  playDefeatCue() {
+    this.playSfx('defeat');
+    setTimeout(() => this.playSfx('defeatTail'), 120);
+  },
+
   // 전투 시작
   start(beastId, enemy, onWin, onLose) {
     this.active = true;
@@ -130,6 +150,9 @@ const Combat = {
     if (this.enemyTurnTimer) {
       clearTimeout(this.enemyTurnTimer);
       this.enemyTurnTimer = null;
+    }
+    if (typeof StoryAudio !== 'undefined' && StoryAudio && typeof StoryAudio.startAmbient === 'function') {
+      StoryAudio.startAmbient('battle');
     }
 
     const ui = document.getElementById('combat-ui');
@@ -193,6 +216,7 @@ const Combat = {
       this.burstReady = this.burstGauge >= 100;
       this.updateCombatStateUI();
       this.logLine('타이밍이 빗나가 공격이 허공을 갈랐다.', 'log-miss');
+      this.playSfx('miss', 120);
       this.scheduleEnemyAttack(320);
       return;
     }
@@ -249,6 +273,12 @@ const Combat = {
     this.logLine(`${attackText} (${damage} 피해)${rhythmText}${burstText}`, result.class);
     if (burstActive) this.showRhythmFeedback('burst');
     this.spawnHitEffect('enemy', (tierKey === 'critical' || burstActive) ? 'heavy' : 'normal');
+    this.spawnDamageNumber('enemy', damage, { critical: tierKey === 'critical' || burstActive, heavy: burstActive });
+    this.playSfx('attackSwing', 38);
+    this.playSfx('hitEnemy', 58);
+    if (tierKey === 'critical' || burstActive) {
+      this.playSfx('hitEnemyHeavy', 130);
+    }
 
     // 집중 게이지 증가
     const focusByTier = { fail: 8, normal: 12, good: 18, critical: 26 };
@@ -315,8 +345,10 @@ const Combat = {
     this.setIntent('적이 균형을 잃었다. 다음 반격이 지연된다!');
     this.showRhythmFeedback('skill');
     this.spawnHitEffect('enemy', 'skill');
+    this.spawnDamageNumber('enemy', skillDmg, { critical: true, heavy: true });
     this.applyImpact('critical');
-    StoryAudio.playSfx('flash');
+    this.playSfx('attackSwing', 45);
+    this.playSfx('hitEnemyHeavy', 120);
 
     this.updateEnemyStatus();
     this.updateCombatStateUI();
@@ -421,18 +453,21 @@ const Combat = {
       this.addRewardScore(7);
       this.showRhythmFeedback('parryPerfect');
       this.logLine('완벽한 패링 타이밍을 잡았다!', 'log-good');
+      this.playSfx('parryPerfect', 70);
     } else if (delta <= COMBAT_PARRY.goodWindowMs) {
       strike.parryGrade = 'good';
       this.parryGoodCount += 1;
       this.addRewardScore(4);
       this.showRhythmFeedback('parryGood');
       this.logLine('패링 성공! 받는 피해가 줄어든다.', 'log-good');
+      this.playSfx('parryGood', 70);
     } else {
       strike.parryGrade = 'fail';
       this.parryFailCount += 1;
       this.addRewardScore(-3);
       this.showRhythmFeedback('parryFail');
       this.logLine('패링 타이밍을 놓쳤다...', 'log-miss');
+      this.playSfx('miss', 120);
     }
 
     if (now >= strike.resolveAt - 12) {
@@ -475,6 +510,8 @@ const Combat = {
       this.gainEnemyBreak(20);
       this.logLine(`완벽 패링! 반격 적중 (${counter} 피해)`, 'log-critical');
       this.spawnHitEffect('enemy', 'heavy');
+      this.spawnDamageNumber('enemy', counter, { critical: true, heavy: true });
+      this.playSfx('hitEnemyHeavy', 130);
       this.applyImpact('critical');
       this.updateEnemyStatus();
       this.updateEnemyPhase();
@@ -497,6 +534,8 @@ const Combat = {
       this.gainEnemyBreak(12);
       this.logLine(`패링 성공! 피해 감소 + 반격 (${counter} 피해)`, 'log-good');
       this.spawnHitEffect('enemy', 'normal');
+      this.spawnDamageNumber('enemy', counter);
+      this.playSfx('hitEnemy', 70);
       this.updateEnemyStatus();
       this.updateEnemyPhase();
       if (this.enemy.currentHp <= 0) {
@@ -516,6 +555,11 @@ const Combat = {
     const suffix = parryGrade === 'good' ? ' [피해 감소]' : (parryGrade === 'fail' ? ' [패링 실패]' : '');
     this.logLine(`${hitText} ${pattern.hitText} (${enemyDmg} 피해)${suffix}`, 'log-enemy');
     this.spawnHitEffect('player', pattern.heavy ? 'heavy' : 'normal');
+    this.spawnDamageNumber('player', enemyDmg, { heavy: pattern.heavy || parryGrade === 'fail' });
+    this.playSfx('hitPlayer', 65);
+    if (pattern.heavy || parryGrade === 'fail') {
+      this.playSfx('break', 320);
+    }
 
     this.applyImpact(pattern.heavy ? 'enemyHeavy' : 'enemy');
     this.updatePlayerStatus();
@@ -523,6 +567,8 @@ const Combat = {
 
     if (this.playerHp <= 0) {
       this.logLine('더는 버틸 수 없다...', 'log-enemy');
+      this.playDefeatCue();
+      this.applyImpact('enemyHeavy');
       setTimeout(() => this.end(false), 750);
       return;
     }
@@ -810,9 +856,7 @@ const Combat = {
     UI.updateGoldDisplay();
 
     const dropText = drops.length ? ` · ${drops.join(', ')}` : '';
-    if (typeof StoryAudio !== 'undefined' && StoryAudio && StoryAudio.playSfx) {
-      StoryAudio.playSfx('reward');
-    }
+    this.playSfx('reward');
     UI.showToast(`전투 보상 +${gold}G${dropText}`);
 
     return { gold, drops };
@@ -846,6 +890,7 @@ const Combat = {
       this.logLine('브레이크! 적의 자세가 무너져 다음 반격이 멈춘다.', 'log-critical');
       this.showRhythmFeedback('perfect');
       this.applyImpact('critical');
+      this.playSfx('break', 280);
     }
     this.updateEnemyStatus();
   },
@@ -897,7 +942,7 @@ const Combat = {
       } else if (next === 2) {
         this.logLine('적이 광폭 상태에 돌입했다!', 'log-enemy');
       }
-      StoryAudio.playSfx('shake');
+      this.playSfx('break', 280);
       this.applyImpact('enemyHeavy');
     }
   },
@@ -1067,6 +1112,22 @@ const Combat = {
     setTimeout(() => flash.remove(), 200);
   },
 
+  spawnDamageNumber(target, amount, options = {}) {
+    const layer = document.getElementById('story-hit-vfx');
+    if (!layer) return;
+    const value = Math.max(0, Math.floor(amount || 0));
+    if (!value) return;
+
+    const isPlayerHit = target === 'player';
+    const dmg = document.createElement('div');
+    dmg.className = `hit-vfx-dmg ${isPlayerHit ? 'enemy' : 'ally'}${options.critical ? ' crit' : ''}${options.heavy ? ' heavy' : ''}`;
+    dmg.textContent = `-${value}`;
+    dmg.style.left = `${(isPlayerHit ? 64 : 36) + (Math.random() * 10 - 5)}%`;
+    dmg.style.top = `${46 + (Math.random() * 10 - 5)}%`;
+    layer.appendChild(dmg);
+    setTimeout(() => dmg.remove(), options.critical ? 760 : 620);
+  },
+
   logLine(text, className) {
     const log = document.getElementById('combat-log');
     if (!log) return;
@@ -1131,6 +1192,13 @@ const Combat = {
     this.burstGauge = 0;
     this.burstReady = false;
     this.enemyBreakGauge = 0;
+    if (typeof StoryAudio !== 'undefined' && StoryAudio && typeof StoryAudio.startAmbient === 'function') {
+      if (won) {
+        StoryAudio.startAmbient(this.beastId);
+      } else {
+        setTimeout(() => StoryAudio.startAmbient(this.beastId), 780);
+      }
+    }
 
     if (won && this.onWin) {
       this.onWin();

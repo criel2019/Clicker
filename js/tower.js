@@ -76,6 +76,10 @@ const Tower = {
 
   playSfx(type = 'page', throttledMs = 0) {
     if (typeof StoryAudio === 'undefined' || !StoryAudio) return;
+    if (typeof StoryAudio.playCombatSfx === 'function') {
+      StoryAudio.playCombatSfx(type, throttledMs);
+      return;
+    }
     if (throttledMs > 0 && typeof StoryAudio.playSfxThrottled === 'function') {
       StoryAudio.playSfxThrottled(type, throttledMs);
       return;
@@ -83,6 +87,11 @@ const Tower = {
     if (typeof StoryAudio.playSfx === 'function') {
       StoryAudio.playSfx(type);
     }
+  },
+
+  playDefeatCue() {
+    this.playSfx('defeat');
+    setTimeout(() => this.playSfx('defeatTail'), 120);
   },
 
   // 탑 적 생성 (층수 기반)
@@ -182,6 +191,9 @@ const Tower = {
   startBattle() {
     if (!this.selectedBeast) return;
     this.playSfx('combat');
+    if (typeof StoryAudio !== 'undefined' && StoryAudio && typeof StoryAudio.startAmbient === 'function') {
+      StoryAudio.startAmbient('battle');
+    }
 
     const beastId = this.selectedBeast;
     const towerData = GameState.tower[beastId];
@@ -262,6 +274,7 @@ const Tower = {
       this.focusGauge = Math.max(0, this.focusGauge - 12);
       this.updateBattleUI();
       this.logLine('타이밍이 빗나가 공격이 허공을 갈랐다.', 'log-miss');
+      this.playSfx('miss', 120);
       this.scheduleEnemyAttack(320);
       return;
     }
@@ -300,6 +313,10 @@ const Tower = {
     const rhythmText = rhythm.label ? ` ${rhythm.label}` : '';
     this.logLine(`${attackText} (${damage} 피해)${rhythmText}`, result.class);
     this.spawnHitEffect('enemy', tierKey === 'critical' ? 'heavy' : 'normal');
+    this.spawnDamageNumber('enemy', damage, { critical: tierKey === 'critical' });
+    this.playSfx('attackSwing', 40);
+    this.playSfx('hitEnemy', 60);
+    if (tierKey === 'critical') this.playSfx('hitEnemyHeavy', 130);
 
     const focusByTier = { fail: 8, normal: 12, good: 18, critical: 26 };
     this.gainFocus((focusByTier[tierKey] || 10) + rhythm.focusBonus);
@@ -330,7 +347,7 @@ const Tower = {
     const now = Date.now();
     if (now < this.inputLockedUntil) return;
     this.inputLockedUntil = now + 90;
-    this.playSfx('flash');
+    this.playSfx('attackSwing', 45);
 
     const beastId = this.selectedBeast;
     const level = (GameState.beasts[beastId] || {}).level || 1;
@@ -347,6 +364,8 @@ const Tower = {
     this.logLine(`각성 일격! 폭발적인 일격이 꽂혔다! (${skillDmg} 피해)`, 'log-critical');
     this.showRhythmFeedback('skill');
     this.spawnHitEffect('enemy', 'skill');
+    this.spawnDamageNumber('enemy', skillDmg, { critical: true, heavy: true });
+    this.playSfx('hitEnemyHeavy', 120);
     this.setIntent('적이 중심을 잃었다. 다음 반격이 지연된다!');
     this.applyBattleImpact('critical');
     this.updateEnemyPhase();
@@ -439,16 +458,17 @@ const Tower = {
     const delta = Math.abs(now - strike.resolveAt);
     if (delta <= TOWER_PARRY.perfectWindowMs) {
       strike.parryGrade = 'perfect';
-      this.playSfx('flash', 80);
+      this.playSfx('parryPerfect', 70);
       this.showRhythmFeedback('parryPerfect');
       this.logLine('완벽 패링 타이밍을 잡았다!', 'log-good');
     } else if (delta <= TOWER_PARRY.goodWindowMs) {
       strike.parryGrade = 'good';
-      this.playSfx('page', 80);
+      this.playSfx('parryGood', 70);
       this.showRhythmFeedback('parryGood');
       this.logLine('패링 성공! 피해를 크게 줄인다.', 'log-good');
     } else {
       strike.parryGrade = 'fail';
+      this.playSfx('miss', 120);
       this.showRhythmFeedback('parryFail');
       this.logLine('패링 타이밍 실패...', 'log-miss');
     }
@@ -490,6 +510,8 @@ const Tower = {
       this.gainFocus(18);
       this.logLine(`완벽 패링! 반격 성공 (${counter} 피해)`, 'log-critical');
       this.spawnHitEffect('enemy', 'heavy');
+      this.spawnDamageNumber('enemy', counter, { critical: true, heavy: true });
+      this.playSfx('hitEnemyHeavy', 130);
       this.applyBattleImpact('critical');
       this.updateEnemyPhase();
       this.updateBattleUI();
@@ -508,6 +530,8 @@ const Tower = {
       this.gainFocus(10);
       this.logLine(`패링 성공! 피해 경감 + 반격 (${counter} 피해)`, 'log-good');
       this.spawnHitEffect('enemy', 'normal');
+      this.spawnDamageNumber('enemy', counter);
+      this.playSfx('hitEnemy', 70);
       this.updateEnemyPhase();
       if (this.currentEnemy.currentHp <= 0) {
         this.updateBattleUI();
@@ -524,6 +548,11 @@ const Tower = {
     const suffix = parryGrade === 'good' ? ' [경감]' : (parryGrade === 'fail' ? ' [실패]' : '');
     this.logLine(`${hitText} ${pattern.hitText} (${enemyDmg} 피해)${suffix}`, 'log-enemy');
     this.spawnHitEffect('player', pattern.heavy ? 'heavy' : 'normal');
+    this.spawnDamageNumber('player', enemyDmg, { heavy: pattern.heavy || parryGrade === 'fail' });
+    this.playSfx('hitPlayer', 65);
+    if (pattern.heavy || parryGrade === 'fail') {
+      this.playSfx('break', 320);
+    }
 
     this.applyBattleImpact(pattern.heavy ? 'enemyHeavy' : 'enemy');
     this.updateBattleUI();
@@ -755,6 +784,7 @@ const Tower = {
       } else if (next === 2) {
         this.logLine('적이 광폭 상태에 돌입했다!', 'log-enemy');
       }
+      this.playSfx('break', 280);
       this.applyBattleImpact('enemyHeavy');
       this.queueEnemyIntent();
     }
@@ -887,6 +917,22 @@ const Tower = {
     setTimeout(() => flash.remove(), 200);
   },
 
+  spawnDamageNumber(target, amount, options = {}) {
+    const layer = document.getElementById('tower-hit-vfx');
+    if (!layer) return;
+    const value = Math.max(0, Math.floor(amount || 0));
+    if (!value) return;
+
+    const isPlayerHit = target === 'player';
+    const dmg = document.createElement('div');
+    dmg.className = `hit-vfx-dmg ${isPlayerHit ? 'enemy' : 'ally'}${options.critical ? ' crit' : ''}${options.heavy ? ' heavy' : ''}`;
+    dmg.textContent = `-${value}`;
+    dmg.style.left = `${(isPlayerHit ? 64 : 36) + (Math.random() * 10 - 5)}%`;
+    dmg.style.top = `${46 + (Math.random() * 10 - 5)}%`;
+    layer.appendChild(dmg);
+    setTimeout(() => dmg.remove(), options.critical ? 760 : 620);
+  },
+
   logLine(text, className) {
     const log = document.getElementById('tower-combat-log');
     if (!log) return;
@@ -910,6 +956,9 @@ const Tower = {
   // 층 클리어
   winFloor() {
     this.playSfx('reward');
+    if (typeof StoryAudio !== 'undefined' && StoryAudio && typeof StoryAudio.stopAmbient === 'function') {
+      StoryAudio.stopAmbient();
+    }
     this.stopRhythmMeter();
     this.clearFeedbackTimer();
     this.clearBattleTimers();
@@ -955,7 +1004,11 @@ const Tower = {
 
   // 패배
   loseFloor() {
-    this.playSfx('shake');
+    this.playDefeatCue();
+    this.applyBattleImpact('enemyHeavy');
+    if (typeof StoryAudio !== 'undefined' && StoryAudio && typeof StoryAudio.stopAmbient === 'function') {
+      setTimeout(() => StoryAudio.stopAmbient(), 700);
+    }
     this.stopRhythmMeter();
     this.clearFeedbackTimer();
     this.clearBattleTimers();

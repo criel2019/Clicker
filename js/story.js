@@ -511,7 +511,12 @@ const Story = {
       return;
     }
 
-    this.clearCutscene();
+    const cutsceneContainer = document.getElementById('story-cutscene');
+    if (cutsceneContainer && !cutsceneContainer.classList.contains('hidden')) {
+      this.clearCutscene(() => this.renderNode());
+      return;
+    }
+
     this.updateCharacter(node.speaker);
 
     if (node.type === 'text') {
@@ -539,12 +544,20 @@ const Story = {
       textEl.textContent = `${node.enemy.name}이(가) 나타났다!`;
       textBox.classList.remove('dialogue', 'system-msg', 'cutscene-text');
       textBox.classList.remove('awaiting-next', 'mood-impact', 'mood-soft', 'mood-whisper');
-      StoryAudio.playSfx('combat');
+      if (StoryAudio && typeof StoryAudio.playCombatSfx === 'function') {
+        StoryAudio.playCombatSfx('battleStart');
+      } else {
+        StoryAudio.playSfx('combat');
+      }
 
       Combat.start(
         this.currentBeast, node.enemy,
         () => { this.inCombat = false; this.currentNode++; this.renderNode(); },
-        () => { this.inCombat = false; UI.showToast('패배했다... 다시 도전해보자.'); this.renderNode(); }
+        () => {
+          this.inCombat = false;
+          UI.showToast('패배했다... 다시 도전해보자.');
+          setTimeout(() => this.renderNode(), 850);
+        }
       );
       return;
     }
@@ -665,17 +678,15 @@ const Story = {
     const textEl = document.getElementById('story-text');
     const textBox = document.getElementById('story-text-box');
 
+    container.dataset.closing = '';
+    container.classList.remove('hidden', 'fading-out');
     document.getElementById('story-character').classList.add('cutscene-hidden');
     textBox.classList.remove('dialogue', 'system-msg', 'mood-impact', 'mood-soft', 'mood-whisper');
     textBox.classList.add('cutscene-text');
 
     if (node.image) {
       this.unlockCG(node.image);
-      if (img.src !== new URL(node.image, location.href).href) {
-        img.classList.add('transitioning');
-        setTimeout(() => { img.src = node.image; img.classList.remove('transitioning'); }, 200);
-      }
-      container.classList.remove('hidden');
+      this.crossfadeCutsceneImage(node.image);
     }
 
     speakerEl.textContent = '';
@@ -687,17 +698,66 @@ const Story = {
     }
   },
 
-  clearCutscene() {
+  crossfadeCutsceneImage(nextSrc) {
     const container = document.getElementById('story-cutscene');
-    if (!container.classList.contains('hidden')) {
-      container.classList.add('fading-out');
-      setTimeout(() => {
-        container.classList.add('hidden');
-        container.classList.remove('fading-out');
-        document.getElementById('story-cutscene-img').src = '';
-      }, 500);
+    const img = document.getElementById('story-cutscene-img');
+    if (!container || !img || !nextSrc) return;
+
+    const nextAbs = new URL(nextSrc, location.href).href;
+    const currentAbs = img.src || '';
+    if (!currentAbs) {
+      img.classList.add('transitioning');
+      img.src = nextSrc;
+      requestAnimationFrame(() => img.classList.remove('transitioning'));
+      return;
     }
-    document.getElementById('story-text-box').classList.remove('cutscene-text');
+    if (currentAbs === nextAbs) return;
+
+    const ghost = img.cloneNode(false);
+    ghost.removeAttribute('id');
+    ghost.className = 'story-cutscene-img-ghost';
+    ghost.src = currentAbs;
+    container.appendChild(ghost);
+    requestAnimationFrame(() => ghost.classList.add('fade-out'));
+
+    img.classList.add('transitioning');
+    img.src = nextSrc;
+    requestAnimationFrame(() => img.classList.remove('transitioning'));
+    setTimeout(() => ghost.remove(), 380);
+  },
+
+  clearCutscene(callback = null) {
+    const container = document.getElementById('story-cutscene');
+    const done = () => {
+      document.getElementById('story-text-box').classList.remove('cutscene-text');
+      if (typeof callback === 'function') callback();
+    };
+
+    if (!container || container.classList.contains('hidden')) {
+      done();
+      return;
+    }
+    if (typeof callback !== 'function') {
+      container.classList.add('hidden');
+      container.classList.remove('fading-out');
+      container.dataset.closing = '';
+      document.getElementById('story-cutscene-img').src = '';
+      container.querySelectorAll('.story-cutscene-img-ghost').forEach((el) => el.remove());
+      done();
+      return;
+    }
+    if (container.dataset.closing === '1') return;
+
+    container.dataset.closing = '1';
+    container.classList.add('fading-out');
+    setTimeout(() => {
+      container.classList.add('hidden');
+      container.classList.remove('fading-out');
+      container.dataset.closing = '';
+      document.getElementById('story-cutscene-img').src = '';
+      container.querySelectorAll('.story-cutscene-img-ghost').forEach((el) => el.remove());
+      done();
+    }, 320);
   },
 
   // ??? ?붾㈃ ?곗텧 ?④낵 ???
@@ -1069,6 +1129,9 @@ const Story = {
   },
 
   openGallery() {
+    if (typeof StoryAudio !== 'undefined' && StoryAudio && typeof StoryAudio.playSfx === 'function') {
+      StoryAudio.playSfx('page');
+    }
     document.getElementById('overlay-gallery').classList.remove('hidden');
     this.renderGallery(this.selectBeast || GameState.currentBeast);
   },
@@ -1410,31 +1473,87 @@ const StoryAudio = {
 
   fileAudio: {
     bgm: {
-      default: 'assets/audio/bgm/story_theme.wav'
+      default: 'assets/audio/bgm/story_theme.wav',
+      battle: 'assets/audio/bgm/battle_theme.wav'
     },
     sfx: {
       page: ['assets/audio/sfx/page.wav', 'assets/audio/sfx/var/ui_beep_blip.wav'],
       transition: ['assets/audio/sfx/transition.wav', 'assets/audio/sfx/var/sweep_down_05.wav'],
       shake: 'assets/audio/sfx/shake.wav',
       flash: ['assets/audio/sfx/flash.wav', 'assets/audio/sfx/var/ui_click_confirm.wav'],
-      combat: ['assets/audio/sfx/combat.wav', 'assets/audio/sfx/var/stinger_bass_04.wav'],
-      reward: ['assets/audio/sfx/reward.wav', 'assets/audio/sfx/var/ui_tonal_confirm.wav']
+      combat: ['assets/audio/sfx/combat/swing_01.wav', 'assets/audio/sfx/combat/player_hit_crit.wav'],
+      reward: ['assets/audio/sfx/reward.wav', 'assets/audio/sfx/var/ui_tonal_confirm.wav'],
+      attackSwing: ['assets/audio/sfx/combat/swing_01.wav', 'assets/audio/sfx/combat/swing_02.wav'],
+      hitEnemy: [
+        'assets/audio/sfx/combat/player_hit_01.wav',
+        'assets/audio/sfx/combat/player_hit_02.wav',
+        'assets/audio/sfx/combat/player_hit_03.wav',
+        'assets/audio/sfx/combat/player_hit_04.wav'
+      ],
+      hitEnemyHeavy: ['assets/audio/sfx/combat/player_hit_crit.wav'],
+      hitPlayer: [
+        'assets/audio/sfx/combat/enemy_hit_01.wav',
+        'assets/audio/sfx/combat/enemy_hit_02.wav',
+        'assets/audio/sfx/combat/enemy_hit_03.wav'
+      ],
+      parryGood: ['assets/audio/sfx/combat/enemy_hit_01.wav'],
+      parryPerfect: ['assets/audio/sfx/combat/player_hit_crit.wav'],
+      miss: ['assets/audio/sfx/combat/swing_02.wav'],
+      break: ['assets/audio/sfx/combat/enemy_hit_03.wav', 'assets/audio/sfx/combat/player_hit_crit.wav'],
+      defeat: ['assets/audio/sfx/combat/defeat_hit.wav'],
+      defeatTail: ['assets/audio/sfx/combat/defeat_tail.wav']
     },
     bgmRate: {
       cheongryong: 1.0,
       baekho: 0.98,
       jujak: 1.03,
       hyeonmu: 0.95,
-      hwangryong: 1.02
+      hwangryong: 1.02,
+      battle: 1.0
+    },
+    bgmGain: {
+      default: 0.34,
+      battle: 0.46
     },
     sfxGain: {
       page: 0.38,
       transition: 0.36,
       shake: 0.24,
       flash: 0.42,
-      combat: 0.42,
-      reward: 0.5
+      combat: 0.34,
+      reward: 0.5,
+      attackSwing: 0.26,
+      hitEnemy: 0.5,
+      hitEnemyHeavy: 0.56,
+      hitPlayer: 0.5,
+      parryGood: 0.3,
+      parryPerfect: 0.54,
+      miss: 0.2,
+      break: 0.44,
+      defeat: 0.64,
+      defeatTail: 0.58
     }
+  },
+
+  combatCueMap: {
+    battleStart: 'combat',
+    combat: 'combat',
+    attack: 'attackSwing',
+    attackSwing: 'attackSwing',
+    hitEnemy: 'hitEnemy',
+    hitEnemyHeavy: 'hitEnemyHeavy',
+    hitPlayer: 'hitPlayer',
+    parryGood: 'parryGood',
+    parryPerfect: 'parryPerfect',
+    miss: 'miss',
+    break: 'break',
+    defeat: 'defeat',
+    defeatTail: 'defeatTail',
+    reward: 'reward',
+    shake: 'shake',
+    flash: 'flash',
+    page: 'page',
+    transition: 'transition'
   },
 
   // 파일 재생 실패 시 폴백용 톤
@@ -1477,6 +1596,16 @@ const StoryAudio = {
     this.playSfx(type);
   },
 
+  playCombatSfx(cue, minIntervalMs = 0) {
+    const type = this.combatCueMap[cue] || cue;
+    if (!type) return;
+    if (minIntervalMs > 0) {
+      this.playSfxThrottled(type, minIntervalMs);
+      return;
+    }
+    this.playSfx(type);
+  },
+
   startAmbient(beastId) {
     if (!Story.settings.soundEnabled) return;
     this.stopAmbient();
@@ -1487,7 +1616,8 @@ const StoryAudio = {
       this.ambientAudio = audio;
       audio.loop = true;
       audio.preload = 'auto';
-      audio.volume = Math.max(0, Math.min(1, Story.settings.volume * 0.34));
+      const bgmGain = this.fileAudio.bgmGain[beastId] || this.fileAudio.bgmGain.default || 0.34;
+      audio.volume = Math.max(0, Math.min(1, Story.settings.volume * bgmGain));
       audio.playbackRate = this.fileAudio.bgmRate[beastId] || 1;
 
       const failover = () => {
@@ -1624,6 +1754,76 @@ const StoryAudio = {
         gain.gain.value = vol * 0.1;
         osc.frequency.linearRampToValueAtTime(1380, ctx.currentTime + 0.12);
         gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.22);
+        break;
+      case 'attackSwing':
+        osc.type = 'triangle';
+        osc.frequency.value = 300;
+        gain.gain.value = vol * 0.07;
+        osc.frequency.linearRampToValueAtTime(140, ctx.currentTime + 0.15);
+        gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.16);
+        break;
+      case 'hitEnemy':
+        osc.type = 'square';
+        osc.frequency.value = 220;
+        gain.gain.value = vol * 0.08;
+        osc.frequency.linearRampToValueAtTime(130, ctx.currentTime + 0.09);
+        gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.1);
+        break;
+      case 'hitEnemyHeavy':
+        osc.type = 'sawtooth';
+        osc.frequency.value = 280;
+        gain.gain.value = vol * 0.12;
+        osc.frequency.linearRampToValueAtTime(90, ctx.currentTime + 0.16);
+        gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.18);
+        break;
+      case 'hitPlayer':
+        osc.type = 'sawtooth';
+        osc.frequency.value = 170;
+        gain.gain.value = vol * 0.1;
+        osc.frequency.linearRampToValueAtTime(80, ctx.currentTime + 0.12);
+        gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.14);
+        break;
+      case 'parryGood':
+        osc.type = 'sine';
+        osc.frequency.value = 760;
+        gain.gain.value = vol * 0.08;
+        osc.frequency.linearRampToValueAtTime(620, ctx.currentTime + 0.1);
+        gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.13);
+        break;
+      case 'parryPerfect':
+        osc.type = 'triangle';
+        osc.frequency.value = 950;
+        gain.gain.value = vol * 0.1;
+        osc.frequency.linearRampToValueAtTime(1450, ctx.currentTime + 0.11);
+        gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.16);
+        break;
+      case 'miss':
+        osc.type = 'sine';
+        osc.frequency.value = 430;
+        gain.gain.value = vol * 0.07;
+        osc.frequency.linearRampToValueAtTime(170, ctx.currentTime + 0.16);
+        gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.18);
+        break;
+      case 'break':
+        osc.type = 'sawtooth';
+        osc.frequency.value = 160;
+        gain.gain.value = vol * 0.14;
+        osc.frequency.linearRampToValueAtTime(70, ctx.currentTime + 0.45);
+        gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.48);
+        break;
+      case 'defeat':
+        osc.type = 'sawtooth';
+        osc.frequency.value = 140;
+        gain.gain.value = vol * 0.16;
+        osc.frequency.linearRampToValueAtTime(64, ctx.currentTime + 0.3);
+        gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.34);
+        break;
+      case 'defeatTail':
+        osc.type = 'triangle';
+        osc.frequency.value = 260;
+        gain.gain.value = vol * 0.12;
+        osc.frequency.linearRampToValueAtTime(90, ctx.currentTime + 0.8);
+        gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.85);
         break;
       default:
         gain.gain.value = 0;

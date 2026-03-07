@@ -12,6 +12,99 @@ const UI = {
     }
   },
 
+  initInteractions() {
+    this.bindOverlayInteractions();
+  },
+
+  bindOverlayInteractions() {
+    if (this._overlayInteractionsBound) return;
+    this._overlayInteractionsBound = true;
+
+    document.querySelectorAll('.overlay').forEach((overlay) => {
+      overlay.addEventListener('click', (event) => {
+        if (event.target !== overlay) return;
+        if (!overlay.id || !overlay.id.startsWith('overlay-')) return;
+        const type = overlay.id.replace('overlay-', '');
+        this.closeOverlay(type);
+      });
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      const openOverlays = Array.from(document.querySelectorAll('.overlay:not(.hidden)'));
+      if (!openOverlays.length) return;
+      const topOverlay = openOverlays[openOverlays.length - 1];
+      if (!topOverlay.id || !topOverlay.id.startsWith('overlay-')) return;
+      const type = topOverlay.id.replace('overlay-', '');
+      this.closeOverlay(type);
+    });
+  },
+
+  stopMainEmotionVideo(fadeMs = 120) {
+    const video = document.getElementById('main-char-emotion');
+    const charCg = document.getElementById('main-char-cg');
+    const charFallback = document.getElementById('main-char-fallback');
+    if (!video) return;
+
+    const finalize = () => {
+      try { video.pause(); } catch (_) {}
+      video.onended = null;
+      video._playing = false;
+      video.currentTime = 0;
+      video.removeAttribute('src');
+      video.classList.remove('fading-out');
+      video.classList.add('hidden');
+      video.style.opacity = '';
+      if (charCg) charCg.classList.remove('emotion-hidden');
+      if (charFallback) charFallback.classList.remove('emotion-hidden');
+    };
+
+    if (video.classList.contains('hidden') || fadeMs <= 0) {
+      finalize();
+      return;
+    }
+
+    if (charCg) charCg.classList.remove('emotion-hidden');
+    if (charFallback) charFallback.classList.remove('emotion-hidden');
+    video.classList.add('fading-out');
+    setTimeout(finalize, fadeMs);
+  },
+
+  createMainCharGhost() {
+    const sprite = document.getElementById('char-sprite');
+    if (!sprite) return null;
+
+    const ghost = sprite.cloneNode(true);
+    ghost.removeAttribute('id');
+    ghost.classList.add('char-swap-ghost');
+    ghost.querySelectorAll('[id]').forEach((el) => el.removeAttribute('id'));
+    ghost.querySelectorAll('video').forEach((video) => {
+      try { video.pause(); } catch (_) {}
+      video.removeAttribute('src');
+    });
+    return ghost;
+  },
+
+  transitionMainCharacterSwap(applyFn) {
+    const sprite = document.getElementById('char-sprite');
+    const host = document.getElementById('main-character');
+    if (!sprite || !host) {
+      applyFn();
+      return;
+    }
+
+    const ghost = this.createMainCharGhost();
+    if (ghost) {
+      host.appendChild(ghost);
+      requestAnimationFrame(() => ghost.classList.add('fade-out'));
+      setTimeout(() => ghost.remove(), 320);
+    }
+
+    sprite.classList.add('char-swap-enter');
+    applyFn();
+    requestAnimationFrame(() => sprite.classList.remove('char-swap-enter'));
+  },
+
   // 탭 전환
   switchTab(tabName) {
     this.playSfx('page', 120);
@@ -33,6 +126,8 @@ const UI = {
     const data = BEAST_DATA[beastId];
     const beast = GameState.beasts[beastId];
     if (!data || !beast) return;
+    const beastChanged = !!this._lastMainBeastId && this._lastMainBeastId !== beastId;
+    if (beastChanged) this.stopMainEmotionVideo(120);
 
     const tinyGodImg = document.getElementById('tiny-god-img');
     if (tinyGodImg) {
@@ -51,40 +146,60 @@ const UI = {
       scene.dataset.bgPath = selectedBg;
       this.updateMainSceneBackground(selectedBg);
     }
-    // 캐릭터 이미지 (CG 또는 폴백)
-    const charCg = document.getElementById('main-char-cg');
-    const charFallback = document.getElementById('main-char-fallback');
-    const portraitPath = getBeastPortraitPath(beastId);
-    charFallback.style.background = data.gradient;
-    if (portraitPath) {
-      charFallback.textContent = '';
-      charFallback.style.backgroundImage = `url("${portraitPath}")`;
-      charFallback.style.backgroundSize = 'cover';
-      charFallback.style.backgroundPosition = 'center';
-      charFallback.style.backgroundRepeat = 'no-repeat';
-    } else {
-      charFallback.textContent = data.symbol;
-      charFallback.style.backgroundImage = '';
-    }
+    const applyCharacterVisuals = () => {
+      const charCg = document.getElementById('main-char-cg');
+      const charFallback = document.getElementById('main-char-fallback');
+      const emotionVideo = document.getElementById('main-char-emotion');
+      const emotionPlaying = !!(emotionVideo && emotionVideo._playing && !emotionVideo.classList.contains('hidden'));
+      const portraitPath = getBeastPortraitPath(beastId);
+      if (charCg) {
+        if (emotionPlaying) charCg.classList.add('emotion-hidden');
+        else charCg.classList.remove('emotion-hidden');
+      }
+      if (charFallback) {
+        if (emotionPlaying) charFallback.classList.add('emotion-hidden');
+        else charFallback.classList.remove('emotion-hidden');
+      }
+      charFallback.style.background = data.gradient;
+      if (portraitPath) {
+        charFallback.textContent = '';
+        charFallback.style.backgroundImage = `url("${portraitPath}")`;
+        charFallback.style.backgroundSize = 'cover';
+        charFallback.style.backgroundPosition = 'center';
+        charFallback.style.backgroundRepeat = 'no-repeat';
+      } else {
+        charFallback.textContent = data.symbol;
+        charFallback.style.backgroundImage = '';
+      }
 
-    const cgPath = getCGStandingPath(beastId);
-    if (cgPath) {
-      if (charCg.dataset.cgPath !== cgPath) {
-        charCg.dataset.cgPath = cgPath;
-        charCg.onload = () => {
+      const cgPath = getCGStandingPath(beastId);
+      if (cgPath) {
+        if (charCg.dataset.cgPath !== cgPath) {
+          charCg.dataset.cgPath = cgPath;
+          charCg.onload = () => {
+            charCg.classList.remove('hidden');
+            charFallback.classList.add('hidden');
+          };
+          charCg.onerror = () => {
+            charCg.classList.add('hidden');
+            charFallback.classList.remove('hidden');
+          };
+          charCg.src = cgPath;
+        } else {
           charCg.classList.remove('hidden');
           charFallback.classList.add('hidden');
-        };
-        charCg.onerror = () => {
-          charCg.classList.add('hidden');
-          charFallback.classList.remove('hidden');
-        };
-        charCg.src = cgPath;
+        }
+      } else {
+        charCg.classList.add('hidden');
+        charCg.dataset.cgPath = '';
+        charFallback.classList.remove('hidden');
       }
+    };
+
+    if (beastChanged) {
+      this.transitionMainCharacterSwap(applyCharacterVisuals);
     } else {
-      charCg.classList.add('hidden');
-      charCg.dataset.cgPath = '';
-      charFallback.classList.remove('hidden');
+      applyCharacterVisuals();
     }
 
     // 성급
@@ -107,6 +222,7 @@ const UI = {
 
     // 캐릭터 선택 바
     this.renderBeastSelector();
+    this._lastMainBeastId = beastId;
   },
 
   // 메인 배경 반영
@@ -193,6 +309,8 @@ const UI = {
 
       if (!locked) {
         item.onclick = () => {
+          if (GameState.currentBeast === id) return;
+          this.stopMainEmotionVideo(120);
           GameState.currentBeast = id;
           GameState.save();
           this.renderMainScreen();
@@ -341,19 +459,19 @@ const UI = {
   },
 
   closeBeastDetail() {
-    this.playSfx('transition', 120);
+    this.playSfx('page', 120);
     this.renderBeastCards();
   },
 
   // 오버레이 열기/닫기
   openShop() {
-    this.playSfx('transition', 120);
+    this.playSfx('page', 120);
     document.getElementById('overlay-shop').classList.remove('hidden');
     Shop.render();
   },
 
   openBackgrounds() {
-    this.playSfx('transition', 120);
+    this.playSfx('page', 120);
     document.getElementById('overlay-background').classList.remove('hidden');
     this.renderBackgroundOptions();
   },
@@ -481,7 +599,7 @@ const UI = {
   },
 
   openTraining() {
-    this.playSfx('transition', 120);
+    this.playSfx('page', 120);
     document.getElementById('overlay-training').classList.remove('hidden');
     this.updateTrainingDisplay();
     // Hide tools panel on open
@@ -490,8 +608,14 @@ const UI = {
   },
 
   closeOverlay(type) {
-    this.playSfx('transition', 120);
-    document.getElementById(`overlay-${type}`).classList.add('hidden');
+    const overlay = document.getElementById(`overlay-${type}`);
+    if (!overlay || overlay.classList.contains('hidden')) return;
+    this.playSfx('page', 120);
+    overlay.classList.add('hidden');
+    if (type === 'training') {
+      const panel = document.getElementById('training-tools-panel');
+      if (panel) panel.classList.add('hidden');
+    }
   },
 
   // 훈련 화면 업데이트

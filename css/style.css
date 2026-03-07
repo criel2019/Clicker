@@ -390,6 +390,42 @@ body {
   margin: 0;
 }
 
+#char-sprite {
+  position: relative;
+  z-index: 3;
+  transition: opacity 0.28s ease, transform 0.28s ease;
+}
+
+#char-sprite.char-swap-enter {
+  opacity: 0;
+  transform: translateY(8px) scale(0.985);
+}
+
+#main-character .char-swap-ghost {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 1;
+  transition: opacity 0.28s ease, transform 0.28s ease;
+}
+
+#main-character .char-swap-ghost.fade-out {
+  opacity: 0;
+  transform: translateY(-4px) scale(1.01);
+}
+
+#main-character .char-cg,
+#main-character .char-fallback,
+#main-character .char-emotion {
+  transition: opacity 0.24s ease;
+}
+
+#main-character .char-cg.emotion-hidden,
+#main-character .char-fallback.emotion-hidden {
+  opacity: 0;
+}
+
 .char-img {
   width: 140px;
   height: 140px;
@@ -458,6 +494,10 @@ body {
   max-width: 100%;
   max-height: 100%;
   object-position: center bottom;
+}
+
+#main-character .char-emotion.fading-out {
+  opacity: 0;
 }
 
 .char-stars {
@@ -1242,17 +1282,37 @@ body {
   justify-content: center;
   z-index: 5;
   background: #000;
+  overflow: hidden;
   transition: opacity 0.5s ease;
 }
 
 #story-cutscene.hidden { display: none; }
 #story-cutscene.fading-out { opacity: 0; }
 
-#story-cutscene-img {
+#story-cutscene-img,
+.story-cutscene-img-ghost {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
-  transition: opacity 0.3s ease;
+  object-position: center center;
+  transition: opacity 0.32s ease;
+}
+
+#story-cutscene-img {
+  z-index: 2;
+}
+
+.story-cutscene-img-ghost {
+  z-index: 1;
+  opacity: 1;
+}
+
+.story-cutscene-img-ghost.fade-out {
+  opacity: 0;
 }
 
 #story-cutscene-img.transitioning { opacity: 0; }
@@ -1824,6 +1884,42 @@ body {
   animation-duration: 0.26s;
 }
 
+.hit-vfx-dmg {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-size: clamp(15px, 2.6vw, 28px);
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+  text-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.35),
+    0 0 8px rgba(255, 255, 255, 0.34);
+  animation: hitDamagePop 0.62s cubic-bezier(0.12, 0.77, 0.22, 1) forwards;
+  z-index: 16;
+}
+
+.hit-vfx-dmg.ally {
+  color: #ffe7a2;
+}
+
+.hit-vfx-dmg.enemy {
+  color: #ff9d9d;
+}
+
+.hit-vfx-dmg.crit {
+  color: #fff3bf;
+  font-size: clamp(18px, 3.1vw, 34px);
+  text-shadow:
+    0 0 12px rgba(255, 227, 120, 0.72),
+    0 0 22px rgba(255, 192, 102, 0.56);
+}
+
+.hit-vfx-dmg.heavy {
+  animation-duration: 0.74s;
+}
+
 @keyframes hitSpriteSweep {
   0% {
     opacity: 0;
@@ -1842,6 +1938,27 @@ body {
   0% { opacity: 0; }
   25% { opacity: 1; }
   100% { opacity: 0; }
+}
+
+@keyframes hitDamagePop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.64);
+    filter: blur(1px);
+  }
+  18% {
+    opacity: 1;
+    transform: translate(-50%, calc(-50% - 4px)) scale(1.2);
+    filter: blur(0);
+  }
+  58% {
+    opacity: 1;
+    transform: translate(-50%, calc(-50% - 20px)) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% - 42px)) scale(0.88);
+  }
 }
 
 #story-effect-overlay.flash {
@@ -1890,17 +2007,17 @@ body {
 }
 
 @keyframes combatHit {
-  0% { transform: translateX(0); filter: brightness(1); }
-  30% { transform: translateX(-2px); filter: brightness(1.08); }
-  60% { transform: translateX(2px); filter: brightness(1.02); }
-  100% { transform: translateX(0); filter: brightness(1); }
+  0% { transform: translate3d(0, 0, 0) scale(1); filter: brightness(1) saturate(1); }
+  24% { transform: translate3d(-5px, 0, 0) scale(1.006); filter: brightness(1.14) saturate(1.06); }
+  52% { transform: translate3d(4px, 0, 0) scale(1.002); filter: brightness(1.06) saturate(1.03); }
+  100% { transform: translate3d(0, 0, 0) scale(1); filter: brightness(1) saturate(1); }
 }
 
 @keyframes combatHitStrong {
-  0% { transform: translate(0, 0) scale(1); filter: brightness(1); }
-  25% { transform: translate(-3px, 1px) scale(1.004); filter: brightness(1.12); }
-  60% { transform: translate(3px, -1px) scale(1.002); filter: brightness(1.06); }
-  100% { transform: translate(0, 0) scale(1); filter: brightness(1); }
+  0% { transform: translate3d(0, 0, 0) scale(1); filter: brightness(1) saturate(1); }
+  20% { transform: translate3d(-8px, 2px, 0) scale(1.012); filter: brightness(1.24) saturate(1.12); }
+  46% { transform: translate3d(6px, -1px, 0) scale(1.005); filter: brightness(1.12) saturate(1.07); }
+  100% { transform: translate3d(0, 0, 0) scale(1); filter: brightness(1) saturate(1); }
 }
 
 /* 梨뺥꽣 吏꾪뻾瑜?諛?*/
@@ -2821,17 +2938,17 @@ body {
 }
 
 @keyframes towerImpact {
-  0% { transform: translateX(0); filter: brightness(1); }
-  30% { transform: translateX(-2px); filter: brightness(1.08); }
-  60% { transform: translateX(2px); filter: brightness(1.02); }
-  100% { transform: translateX(0); filter: brightness(1); }
+  0% { transform: translate3d(0, 0, 0) scale(1); filter: brightness(1) saturate(1); }
+  24% { transform: translate3d(-5px, 0, 0) scale(1.006); filter: brightness(1.14) saturate(1.06); }
+  52% { transform: translate3d(4px, 0, 0) scale(1.002); filter: brightness(1.06) saturate(1.03); }
+  100% { transform: translate3d(0, 0, 0) scale(1); filter: brightness(1) saturate(1); }
 }
 
 @keyframes towerImpactStrong {
-  0% { transform: translate(0, 0) scale(1); filter: brightness(1); }
-  25% { transform: translate(-3px, 1px) scale(1.004); filter: brightness(1.12); }
-  60% { transform: translate(3px, -1px) scale(1.002); filter: brightness(1.06); }
-  100% { transform: translate(0, 0) scale(1); filter: brightness(1); }
+  0% { transform: translate3d(0, 0, 0) scale(1); filter: brightness(1) saturate(1); }
+  20% { transform: translate3d(-8px, 2px, 0) scale(1.012); filter: brightness(1.24) saturate(1.12); }
+  46% { transform: translate3d(6px, -1px, 0) scale(1.005); filter: brightness(1.12) saturate(1.07); }
+  100% { transform: translate3d(0, 0, 0) scale(1); filter: brightness(1) saturate(1); }
 }
 
 #tower-floor-display {
