@@ -73,6 +73,22 @@ const Tower = {
   rhythmCycleStart: 0,
   lastResolvedBeat: -1,
   pendingEnemyStrike: null,
+  activeDebuffs: {},
+  _debuffTimers: [],
+  weaknessWindow: false,
+  _weaknessTimer: null,
+  _phaseGimmickUsed: {},
+  dotEffect: null,
+  shieldActive: false,
+  totalDamageDealt: 0,
+  totalDamageTaken: 0,
+  skillUsedCount: 0,
+  parryPerfectCount: 0,
+  parryGoodCount: 0,
+  parryFailCount: 0,
+  comboPeak: 0,
+  fightStartedAt: 0,
+  _crisisDialogueShown: false,
 
   playSfx(type = 'page', throttledMs = 0) {
     if (typeof StoryAudio === 'undefined' || !StoryAudio) return;
@@ -181,6 +197,14 @@ const Tower = {
       skillBtn.disabled = true;
       skillBtn.textContent = '각성 일격 (0%)';
     }
+    const banner = document.getElementById('tower-banner');
+    if (banner) { banner.textContent = ''; banner.className = 'combat-banner'; }
+    const debuffBar = document.getElementById('tower-debuff-bar');
+    if (debuffBar) debuffBar.innerHTML = '';
+    const dialogue = document.getElementById('tower-combat-dialogue');
+    if (dialogue) dialogue.classList.add('hidden');
+    const resultOverlay = document.getElementById('tower-result-overlay');
+    if (resultOverlay) { resultOverlay.classList.add('hidden'); resultOverlay.innerHTML = ''; }
 
     document.getElementById('tower-floor-display').textContent = `${towerData.currentFloor}층`;
     document.getElementById('tower-best-record').textContent = `최고 기록: ${towerData.bestFloor}층`;
@@ -213,6 +237,23 @@ const Tower = {
     this.rhythmCycleStart = Date.now();
     this.lastResolvedBeat = -1;
     this.pendingEnemyStrike = null;
+    this.activeDebuffs = {};
+    this._debuffTimers.forEach(t => clearTimeout(t));
+    this._debuffTimers = [];
+    this.weaknessWindow = false;
+    if (this._weaknessTimer) { clearTimeout(this._weaknessTimer); this._weaknessTimer = null; }
+    this._phaseGimmickUsed = {};
+    this.dotEffect = null;
+    this.shieldActive = false;
+    this.totalDamageDealt = 0;
+    this.totalDamageTaken = 0;
+    this.skillUsedCount = 0;
+    this.parryPerfectCount = 0;
+    this.parryGoodCount = 0;
+    this.parryFailCount = 0;
+    this.comboPeak = 0;
+    this.fightStartedAt = Date.now();
+    this._crisisDialogueShown = false;
     this.stopRhythmMeter();
     this.clearFeedbackTimer();
     this.clearBattleTimers();
@@ -224,6 +265,14 @@ const Tower = {
     document.getElementById('tower-combat-log').innerHTML = '';
     const vfxLayer = document.getElementById('tower-hit-vfx');
     if (vfxLayer) vfxLayer.innerHTML = '';
+    const banner = document.getElementById('tower-banner');
+    if (banner) { banner.textContent = ''; banner.className = 'combat-banner'; }
+    const debuffBar = document.getElementById('tower-debuff-bar');
+    if (debuffBar) debuffBar.innerHTML = '';
+    const dialogue = document.getElementById('tower-combat-dialogue');
+    if (dialogue) dialogue.classList.add('hidden');
+    const resultOverlay = document.getElementById('tower-result-overlay');
+    if (resultOverlay) { resultOverlay.classList.add('hidden'); resultOverlay.innerHTML = ''; }
 
     const skillBtn = document.getElementById('tower-skill-btn');
     const parryBtn = document.getElementById('tower-parry-btn');
@@ -233,7 +282,8 @@ const Tower = {
     if (skillBtn) {
       skillBtn.disabled = true;
       skillBtn.classList.remove('ready');
-      skillBtn.textContent = '각성 일격 (0%)';
+      const skill = TOWER_BEAST_SKILLS[beastId] || TOWER_BEAST_SKILLS.cheongryong;
+      skillBtn.textContent = `${skill.name} (0%)`;
     }
     if (parryBtn) {
       parryBtn.classList.remove('ready');
@@ -247,6 +297,7 @@ const Tower = {
     this.setupRhythmMeter();
     this.setIntent('적이 움직임을 읽고 있다. 리듬을 먼저 잡아라.');
     this.logLine('전투 시작! 리듬 타이밍을 맞춰 콤보를 쌓아라.', 'log-system');
+    this.showCombatDialogue('start');
   },
 
   // 탭 공격
@@ -259,7 +310,8 @@ const Tower = {
 
     const now = Date.now();
     if (now < this.inputLockedUntil) return;
-    this.inputLockedUntil = now + 70;
+    const slowActive = this.activeDebuffs.slow && now < this.activeDebuffs.slow;
+    this.inputLockedUntil = now + (slowActive ? 140 : 70);
 
     const beatIndex = this.getRhythmBeatIndex(now);
     if (beatIndex === this.lastResolvedBeat) {
@@ -306,8 +358,15 @@ const Tower = {
     const baseDmg = 10 + Math.floor(level / 5);
     const comboMult = this.getComboDamageMultiplier();
     const rhythmMult = rhythm.grade === 'perfect' ? 1.35 : rhythm.grade === 'good' ? 1.12 : 0.9;
-    const damage = Math.max(1, Math.floor(baseDmg * result.dmgMult * comboMult * rhythmMult));
+    const weaknessMult = this.weaknessWindow ? 2.0 : 1.0;
+    const damage = Math.max(1, Math.floor(baseDmg * result.dmgMult * comboMult * rhythmMult * weaknessMult));
     this.currentEnemy.currentHp = Math.max(0, this.currentEnemy.currentHp - damage);
+    this.totalDamageDealt += damage;
+    if (this.weaknessWindow) {
+      this.weaknessWindow = false;
+      if (this._weaknessTimer) { clearTimeout(this._weaknessTimer); this._weaknessTimer = null; }
+      this.showBanner('약점 공격! 데미지 2배!', 'banner-critical');
+    }
 
     const attackText = TOWER_ATTACK_TEXTS[tierKey][Math.floor(Math.random() * TOWER_ATTACK_TEXTS[tierKey].length)];
     const rhythmText = rhythm.label ? ` ${rhythm.label}` : '';
@@ -321,12 +380,20 @@ const Tower = {
     const focusByTier = { fail: 8, normal: 12, good: 18, critical: 26 };
     this.gainFocus((focusByTier[tierKey] || 10) + rhythm.focusBonus);
 
+    this.comboPeak = Math.max(this.comboPeak || 0, this.comboCount);
+    if (this.comboCount === 5) this.showCombatDialogue('combo');
+
     this.applyBattleImpact(tierKey);
     this.updateEnemyPhase();
     this.updateBattleUI();
 
     // 경험치
     GameState.addExp(beastId, 1);
+
+    // 패시브 스킬 확률 트리거
+    if (this.comboCount >= 3 && this.currentEnemy.currentHp > 0) {
+      this.checkPassiveSkillTrigger();
+    }
 
     if (this.currentEnemy.currentHp <= 0) {
       this.winFloor();
@@ -354,29 +421,109 @@ const Tower = {
     const floor = (GameState.tower[beastId] || {}).currentFloor || 1;
     const comboMult = this.getComboDamageMultiplier();
     const skillBase = 24 + Math.floor(level / 8) + Math.floor(floor * 0.6);
-    const skillDmg = Math.max(1, Math.floor(skillBase * 2.1 * comboMult));
+    const skill = TOWER_BEAST_SKILLS[beastId] || TOWER_BEAST_SKILLS.cheongryong;
 
-    this.currentEnemy.currentHp = Math.max(0, this.currentEnemy.currentHp - skillDmg);
     this.focusGauge = 0;
-    this.enemyStaggerTurns = 1;
+    this.skillUsedCount++;
     this.comboCount = Math.min(TOWER_RHYTHM.maxCombo, this.comboCount + 1);
+    this.showCombatDialogue('skill');
 
-    this.logLine(`각성 일격! 폭발적인 일격이 꽂혔다! (${skillDmg} 피해)`, 'log-critical');
-    this.showRhythmFeedback('skill');
-    this.spawnHitEffect('enemy', 'skill');
-    this.spawnDamageNumber('enemy', skillDmg, { critical: true, heavy: true });
-    this.playSfx('hitEnemyHeavy', 120);
-    this.setIntent('적이 중심을 잃었다. 다음 반격이 지연된다!');
-    this.applyBattleImpact('critical');
-    this.updateEnemyPhase();
-    this.updateBattleUI();
-
-    if (this.currentEnemy.currentHp <= 0) {
-      this.winFloor();
-      return;
+    // 스킬 컷씬 연출
+    if (typeof Combat !== 'undefined' && Combat.showSkillCutscene) {
+      Combat.showSkillCutscene(beastId, 'tower');
     }
 
-    this.scheduleEnemyAttack(460);
+    if (skill.type === 'multi') {
+      // 청룡: 관통 3연격
+      const dmgPer = Math.max(1, Math.floor(skillBase * skill.baseMult * comboMult));
+      this.logLine(`${skill.name}! 관통하는 3연격!`, 'log-critical');
+      this.showRhythmFeedback('skill');
+      let total = 0;
+      [0, 200, 400].forEach((delay, i) => {
+        setTimeout(() => {
+          if (!this.inBattle || !this.currentEnemy || this.currentEnemy.currentHp <= 0) return;
+          this.currentEnemy.currentHp = Math.max(0, this.currentEnemy.currentHp - dmgPer);
+          total += dmgPer;
+          this.totalDamageDealt += dmgPer;
+          this.spawnHitEffect('enemy', 'heavy');
+          this.spawnDamageNumber('enemy', dmgPer, { critical: true });
+          this.playSfx('hitEnemyHeavy', 60);
+          this.applyBattleImpact('critical');
+          if (i === 2) {
+            this.logLine(`${skill.name} 완료! 총 ${total} 피해`, 'log-critical');
+            this.enemyStaggerTurns = skill.stagger;
+            this.updateEnemyPhase(); this.updateBattleUI();
+            if (this.currentEnemy.currentHp <= 0) { this.winFloor(); return; }
+            this.scheduleEnemyAttack(500);
+          }
+        }, delay);
+      });
+    } else if (skill.type === 'shield') {
+      // 백호: 강타 + 실드
+      const dmg = Math.max(1, Math.floor(skillBase * skill.baseMult * comboMult));
+      this.currentEnemy.currentHp = Math.max(0, this.currentEnemy.currentHp - dmg);
+      this.totalDamageDealt += dmg;
+      this.shieldActive = true;
+      this.logLine(`${skill.name}! 강타 + 실드! (${dmg} 피해)`, 'log-critical');
+      this.showRhythmFeedback('skill');
+      this.spawnHitEffect('enemy', 'skill');
+      this.spawnDamageNumber('enemy', dmg, { critical: true, heavy: true });
+      this.playSfx('hitEnemyHeavy', 70);
+      this.applyBattleImpact('critical');
+      this.updateEnemyPhase(); this.updateBattleUI();
+      if (this.currentEnemy.currentHp <= 0) { this.winFloor(); return; }
+      this.scheduleEnemyAttack(460);
+    } else if (skill.type === 'dot') {
+      // 주작: 즉발 + DOT
+      const dmg = Math.max(1, Math.floor(skillBase * skill.baseMult * comboMult));
+      const dotDmg = Math.max(1, Math.floor(skillBase * skill.dotMult));
+      this.currentEnemy.currentHp = Math.max(0, this.currentEnemy.currentHp - dmg);
+      this.totalDamageDealt += dmg;
+      this.dotEffect = { ticks: skill.dotTicks, dmg: dotDmg };
+      this.logLine(`${skill.name}! 불꽃이 타오른다! (${dmg} + ${dotDmg}×${skill.dotTicks})`, 'log-critical');
+      this.showRhythmFeedback('skill');
+      this.spawnHitEffect('enemy', 'skill');
+      this.spawnDamageNumber('enemy', dmg, { critical: true });
+      this.playSfx('hitEnemyHeavy', 70);
+      this.applyBattleImpact('critical');
+      this.updateEnemyPhase(); this.updateBattleUI();
+      if (this.currentEnemy.currentHp <= 0) { this.winFloor(); return; }
+      this.scheduleEnemyAttack(460);
+    } else if (skill.type === 'heal') {
+      // 현무: 중타 + 회복
+      const dmg = Math.max(1, Math.floor(skillBase * skill.baseMult * comboMult));
+      const heal = Math.min(30, Math.floor(this.maxHp * skill.healPct));
+      this.currentEnemy.currentHp = Math.max(0, this.currentEnemy.currentHp - dmg);
+      this.totalDamageDealt += dmg;
+      this.playerHp = Math.min(this.maxHp, this.playerHp + heal);
+      this.logLine(`${skill.name}! 반격 + 회복! (${dmg} 피해, +${heal} 회복)`, 'log-critical');
+      this.showRhythmFeedback('skill');
+      this.spawnHitEffect('enemy', 'heavy');
+      this.spawnDamageNumber('enemy', dmg, { critical: true });
+      this.playSfx('hitEnemyHeavy', 70);
+      this.applyBattleImpact('critical');
+      this.updateEnemyPhase(); this.updateBattleUI();
+      if (this.currentEnemy.currentHp <= 0) { this.winFloor(); return; }
+      this.scheduleEnemyAttack(460);
+    } else {
+      // 황룡: 초강타
+      const dmg = Math.max(1, Math.floor(skillBase * skill.baseMult * comboMult));
+      this.currentEnemy.currentHp = Math.max(0, this.currentEnemy.currentHp - dmg);
+      this.totalDamageDealt += dmg;
+      this.enemyStaggerTurns = skill.stagger;
+      this.logLine(`${skill.name}!!! 천지를 뒤흔드는 일격! (${dmg} 피해)`, 'log-critical');
+      this.showRhythmFeedback('skill');
+      this.spawnHitEffect('enemy', 'skill');
+      this.spawnDamageNumber('enemy', dmg, { critical: true, heavy: true });
+      this.playSfx('hitEnemyHeavy', 70);
+      this.applyBattleImpact('critical');
+      setTimeout(() => this.applyBattleImpact('critical'), 80);
+      this.updateEnemyPhase(); this.updateBattleUI();
+      if (this.currentEnemy.currentHp <= 0) { this.winFloor(); return; }
+      this.scheduleEnemyAttack(550);
+    }
+
+    this.setIntent('적이 중심을 잃었다. 공격 기회!');
   },
 
   scheduleEnemyAttack(delay) {
@@ -428,8 +575,35 @@ const Tower = {
       parryGrade: 'none',
       parryTried: false
     };
-    this.logLine(`적이 ${pattern.name} 준비 중! 타격 직전에 패링!`, 'log-enemy');
-    this.setIntent(`⚠ ${pattern.name} 예고! 지금 패링 타이밍을 잡아라.`);
+    if (pattern.unparryable) {
+      this.pendingEnemyStrike.parryTried = true;
+      this.logLine(`적이 ${pattern.name} 준비 중! 패링 불가!`, 'log-enemy');
+      this.showBanner(`${pattern.name} — 패링 불가!`, 'banner-danger');
+      this.setIntent(`⚠ ${pattern.name}! 패링 불가!`);
+    } else {
+      this.logLine(`적이 ${pattern.name} 준비 중! 타격 직전에 패링!`, 'log-enemy');
+      this.showBanner(`${pattern.name}! 패링 준비!`, 'banner-parry');
+      this.setIntent(`⚠ ${pattern.name} 예고! 지금 패링 타이밍을 잡아라.`);
+    }
+    this.showKeyMessage(pattern.name + '!', pattern.unparryable ? 'msg-danger' : 'msg-attack');
+
+    // 패링 카운트다운 링
+    const parent = document.getElementById('tower-battle');
+    if (parent && !pattern.unparryable) {
+      const ring = document.createElement('svg');
+      ring.className = 'parry-countdown-ring';
+      ring.setAttribute('viewBox', '0 0 80 80');
+      ring.style.setProperty('--parry-duration', windup + 'ms');
+      ring.innerHTML = '<circle class="ring-bg" cx="40" cy="40" r="36"/><circle class="ring-fill" cx="40" cy="40" r="36"/>';
+      parent.appendChild(ring);
+      setTimeout(() => ring.remove(), windup + 100);
+    }
+
+    const now2 = Date.now();
+    if (this.activeDebuffs.blind && now2 < this.activeDebuffs.blind) {
+      const parryBtnEl = document.getElementById('tower-parry-btn');
+      if (parryBtnEl) parryBtnEl.classList.add('blind-debuff');
+    }
     this.showRhythmFeedback('parry');
     this.updateBattleUI();
     this.enemyTurnTimer = setTimeout(() => {
@@ -458,16 +632,20 @@ const Tower = {
     const delta = Math.abs(now - strike.resolveAt);
     if (delta <= TOWER_PARRY.perfectWindowMs) {
       strike.parryGrade = 'perfect';
+      this.parryPerfectCount = (this.parryPerfectCount || 0) + 1;
       this.playSfx('parryPerfect', 70);
       this.showRhythmFeedback('parryPerfect');
+      this.showKeyMessage('PERFECT!', 'msg-perfect');
       this.logLine('완벽 패링 타이밍을 잡았다!', 'log-good');
     } else if (delta <= TOWER_PARRY.goodWindowMs) {
       strike.parryGrade = 'good';
+      this.parryGoodCount = (this.parryGoodCount || 0) + 1;
       this.playSfx('parryGood', 70);
       this.showRhythmFeedback('parryGood');
       this.logLine('패링 성공! 피해를 크게 줄인다.', 'log-good');
     } else {
       strike.parryGrade = 'fail';
+      this.parryFailCount = (this.parryFailCount || 0) + 1;
       this.playSfx('miss', 120);
       this.showRhythmFeedback('parryFail');
       this.logLine('패링 타이밍 실패...', 'log-miss');
@@ -543,7 +721,30 @@ const Tower = {
       this.logLine('패링 실패로 반격을 정통으로 맞았다!', 'log-enemy');
     }
 
+    // 백호 실드 체크 (패링 없이 맞을 때만)
+    if (this.shieldActive && parryGrade === 'none') {
+      this.shieldActive = false;
+      this.logLine('실드가 적의 공격을 막아냈다!', 'log-good');
+      this.showRhythmFeedback('parryGood');
+      this.updateBattleUI();
+      this.queueEnemyIntent();
+      return;
+    }
+
     this.playerHp = Math.max(0, this.playerHp - enemyDmg);
+    this.totalDamageTaken += enemyDmg;
+
+    // 패턴 디버프 적용 (패링 실패 or 패링 안 했을 때만)
+    if (pattern.debuff && parryGrade !== 'perfect' && parryGrade !== 'good') {
+      this.applyDebuff(pattern.debuff);
+    }
+    // 독 디버프 적용
+    if (pattern.debuff === 'poison' && parryGrade !== 'perfect') {
+      const poisonDmg = Math.max(1, Math.floor((this.currentEnemy.attack || 10) * 0.15));
+      this.activeDebuffs.poison = { ticks: 3, dmg: poisonDmg };
+      this.logLine(`독에 걸렸다! 매 턴 ${poisonDmg} 피해`, 'log-enemy');
+    }
+
     const hitText = TOWER_ENEMY_ATTACK_TEXTS.hit[Math.floor(Math.random() * TOWER_ENEMY_ATTACK_TEXTS.hit.length)];
     const suffix = parryGrade === 'good' ? ' [경감]' : (parryGrade === 'fail' ? ' [실패]' : '');
     this.logLine(`${hitText} ${pattern.hitText} (${enemyDmg} 피해)${suffix}`, 'log-enemy');
@@ -556,6 +757,12 @@ const Tower = {
 
     this.applyBattleImpact(pattern.heavy ? 'enemyHeavy' : 'enemy');
     this.updateBattleUI();
+
+    // HP 위기 대사
+    if (this.playerHp <= this.maxHp * 0.3 && !this._crisisDialogueShown) {
+      this._crisisDialogueShown = true;
+      this.showCombatDialogue('crisis');
+    }
 
     if (this.playerHp <= 0) {
       this.loseFloor();
@@ -757,6 +964,13 @@ const Tower = {
   },
 
   pickEnemyPattern() {
+    // 도발 디버프: 강제 강공
+    if (this.activeDebuffs.taunt) {
+      delete this.activeDebuffs.taunt;
+      this.updateDebuffUI();
+      return { name: '강공', multiplier: 1.35, hits: 1, hitText: '도발에 의한 강력한 일격!', heavy: true };
+    }
+
     const pool = [
       { name: '견제', multiplier: 0.85, hits: 1, hitText: '상대를 흔들며 틈을 만들었다.', heavy: false },
       { name: '정타', multiplier: 1.0, hits: 1, hitText: '정면에서 강하게 밀어붙였다.', heavy: false }
@@ -767,6 +981,17 @@ const Tower = {
     }
     if (this.enemyPhase >= 2) {
       pool.push({ name: '난타', multiplier: 0.78, hits: 2, hitText: '연속타를 퍼부었다!', heavy: true });
+    }
+
+    // 적 고유 패턴
+    if (this.currentEnemy && this.currentEnemy.name && typeof ENEMY_PATTERNS !== 'undefined') {
+      const baseName = this.currentEnemy.name.replace(/\s*Lv\.\d+$/, '');
+      const enemyData = ENEMY_PATTERNS[baseName];
+      if (enemyData && enemyData.unique) {
+        enemyData.unique.forEach(p => {
+          if (!p.heavy || this.enemyPhase >= 1) pool.push(p);
+        });
+      }
     }
 
     return pool[Math.floor(Math.random() * pool.length)];
@@ -781,8 +1006,20 @@ const Tower = {
       this.enemyPhase = next;
       if (next === 1) {
         this.logLine('적의 기세가 상승했다! 반격 주의!', 'log-enemy');
+        this.showBanner('페이즈 2 — 적이 강해진다!', 'banner-danger');
+        // 페이즈 1 기믹: 약점 노출
+        if (!this._phaseGimmickUsed[1]) {
+          this._phaseGimmickUsed[1] = true;
+          setTimeout(() => this.triggerWeakness(), 800);
+        }
       } else if (next === 2) {
         this.logLine('적이 광폭 상태에 돌입했다!', 'log-enemy');
+        this.showBanner('페이즈 3 — 광폭!', 'banner-danger');
+        // 페이즈 2 기믹: 필살기 예고
+        if (!this._phaseGimmickUsed[2]) {
+          this._phaseGimmickUsed[2] = true;
+          this.triggerBossGimmick();
+        }
       }
       this.playSfx('break', 280);
       this.applyBattleImpact('enemyHeavy');
@@ -791,6 +1028,45 @@ const Tower = {
   },
 
   queueEnemyIntent() {
+    // 주작 화염 DOT 틱 (적에게)
+    if (this.dotEffect && this.dotEffect.ticks > 0) {
+      const dotDmg = this.dotEffect.dmg;
+      this.currentEnemy.currentHp = Math.max(0, this.currentEnemy.currentHp - dotDmg);
+      this.dotEffect.ticks--;
+      this.totalDamageDealt += dotDmg;
+      this.logLine(`화염 지속 피해! (${dotDmg})`, 'log-critical');
+      this.spawnDamageNumber('enemy', dotDmg, { critical: false });
+      this.updateEnemyPhase();
+      if (this.dotEffect.ticks <= 0) this.dotEffect = null;
+      if (this.currentEnemy.currentHp <= 0) {
+        this.logLine(`${this.currentEnemy.name}이(가) 화염에 쓰러졌다!`, 'log-critical');
+        this.winFloor();
+        return;
+      }
+    }
+    // 플레이어 독 DOT 틱
+    if (this.activeDebuffs.poison && this.activeDebuffs.poison.ticks > 0) {
+      const pdmg = this.activeDebuffs.poison.dmg;
+      this.playerHp = Math.max(0, this.playerHp - pdmg);
+      this.activeDebuffs.poison.ticks--;
+      this.totalDamageTaken += pdmg;
+      this.logLine(`독 지속 피해! (${pdmg})`, 'log-enemy');
+      this.spawnDamageNumber('player', pdmg, {});
+      this.updateBattleUI();
+      if (this.activeDebuffs.poison.ticks <= 0) { delete this.activeDebuffs.poison; this.updateDebuffUI(); }
+      if (this.playerHp <= 0) {
+        this.logLine('독에 의해 쓰러졌다...', 'log-enemy');
+        this.playDefeatCue();
+        this.loseFloor();
+        return;
+      }
+    }
+
+    // 약점 노출 기믹 (랜덤 발생)
+    if (!this.weaknessWindow && Math.random() < 0.12 && this.enemyPhase >= 1) {
+      this.triggerWeakness();
+    }
+
     const intents = [
       ['적이 거리를 재고 있다.', '적이 허점을 살피고 있다.'],
       ['적의 기세가 올라간다. 강공 주의!', '적이 날카롭게 반격 각을 잡는다.'],
@@ -838,13 +1114,23 @@ const Tower = {
     }
 
     if (skillBtn) {
+      const skill = TOWER_BEAST_SKILLS[this.selectedBeast] || TOWER_BEAST_SKILLS.cheongryong;
+      const skillName = skill.name || '각성 일격';
       const ready = this.focusGauge >= 100;
       skillBtn.disabled = !ready;
       skillBtn.classList.toggle('ready', ready);
-      skillBtn.textContent = ready ? '각성 일격 READY' : `각성 일격 (${Math.floor(this.focusGauge)}%)`;
+      skillBtn.textContent = ready ? `${skillName} READY!` : `${skillName} (${Math.floor(this.focusGauge)}%)`;
     }
 
-    if (battle) battle.classList.toggle('danger', playerRatio <= 0.3);
+    if (battle) {
+      battle.classList.toggle('danger', playerRatio <= 0.3);
+      // 적 초상화 페이즈 클래스
+      const portrait = document.getElementById('tower-enemy-portrait');
+      if (portrait) {
+        portrait.classList.toggle('phase1', this.enemyPhase >= 1);
+        portrait.classList.toggle('phase2', this.enemyPhase >= 2);
+      }
+    }
   },
 
   applyBattleImpact(kind) {
@@ -944,6 +1230,250 @@ const Tower = {
     log.scrollTop = log.scrollHeight;
   },
 
+  // 메시지 배너 (패링 타이밍 중에도 읽을 수 있는 큰 텍스트)
+  showBanner(text, cls) {
+    const banner = document.getElementById('tower-banner');
+    if (!banner) return;
+    banner.textContent = text;
+    banner.className = `combat-banner show ${cls || ''}`;
+    clearTimeout(this._bannerTimer);
+    this._bannerTimer = setTimeout(() => {
+      banner.className = 'combat-banner';
+    }, 1800);
+  },
+
+  // 디버프 적용
+  applyDebuff(type) {
+    const now = Date.now();
+    const def = DEBUFF_TYPES[type];
+    if (!def) return;
+    if (type === 'taunt') {
+      this.activeDebuffs.taunt = true;
+      this.logLine(`${def.icon} ${def.name}! ${def.desc}`, 'log-enemy');
+    } else if (type === 'poison') {
+      // poison은 resolveEnemyStrike에서 처리
+      return;
+    } else {
+      this.activeDebuffs[type] = now + def.duration;
+      this.logLine(`${def.icon} ${def.name}! ${def.desc} (${(def.duration/1000).toFixed(1)}초)`, 'log-enemy');
+      this.showBanner(`${def.icon} ${def.name} 발동!`, 'banner-debuff');
+      const tid = setTimeout(() => {
+        if (this.activeDebuffs[type] && Date.now() >= this.activeDebuffs[type]) {
+          delete this.activeDebuffs[type];
+          this.updateDebuffUI();
+          if (type === 'blind') {
+            const parryBtnEl = document.getElementById('tower-parry-btn');
+            if (parryBtnEl) parryBtnEl.classList.remove('blind-debuff');
+          }
+        }
+      }, def.duration + 50);
+      this._debuffTimers.push(tid);
+    }
+    this.updateDebuffUI();
+  },
+
+  updateDebuffUI() {
+    const bar = document.getElementById('tower-debuff-bar');
+    if (!bar) return;
+    bar.innerHTML = '';
+    const now = Date.now();
+    Object.keys(this.activeDebuffs).forEach(type => {
+      const def = DEBUFF_TYPES[type];
+      if (!def) return;
+      if (type !== 'taunt' && type !== 'poison' && this.activeDebuffs[type] < now) return;
+      const badge = document.createElement('span');
+      badge.className = 'debuff-badge';
+      badge.style.color = def.color;
+      badge.style.borderColor = def.color;
+      badge.textContent = `${def.icon} ${def.name}`;
+      bar.appendChild(badge);
+    });
+  },
+
+  // 약점 노출 기믹
+  triggerWeakness() {
+    if (!this.inBattle || this.weaknessWindow) return;
+    this.weaknessWindow = true;
+    this.logLine('적이 빈틈을 보인다! 지금 공격하면 2배 피해!', 'log-good');
+    this.showBanner('약점 노출! 지금 공격!', 'banner-weakness');
+    this.setIntent('⚡ 적의 빈틈! 빠르게 공격하라!');
+    this._weaknessTimer = setTimeout(() => {
+      this.weaknessWindow = false;
+      this._weaknessTimer = null;
+      if (this.inBattle) {
+        this.logLine('적이 자세를 바로잡았다.', 'log-miss');
+        this.setIntent('적이 다시 자세를 잡았다.');
+      }
+    }, 2500);
+  },
+
+  // 보스 페이즈 기믹: 필살기 예고
+  triggerBossGimmick() {
+    if (!this.inBattle) return;
+    const requiredCombo = 5;
+    this.logLine(`적이 필살기를 준비한다! ${requiredCombo}콤보 이상으로 캔슬하라!`, 'log-enemy');
+    this.showBanner(`필살기 예고! ${requiredCombo}콤보로 캔슬!`, 'banner-danger');
+    this.setIntent(`⚠ 필살기 준비 중! ${requiredCombo}콤보 이상 쌓아 캔슬!`);
+
+    // 3초 후 판정
+    const gimmickTimer = setTimeout(() => {
+      if (!this.inBattle) return;
+      if (this.comboCount >= requiredCombo) {
+        this.logLine('필살기를 캔슬했다! 적이 큰 빈틈을 보인다!', 'log-critical');
+        this.showBanner('필살기 캔슬 성공!', 'banner-critical');
+        this.enemyStaggerTurns = 2;
+        this.triggerWeakness();
+      } else {
+        const bigDmg = Math.max(1, Math.floor((this.currentEnemy.attack || 10) * 2.0));
+        this.playerHp = Math.max(0, this.playerHp - bigDmg);
+        this.totalDamageTaken += bigDmg;
+        this.logLine(`필살기 캔슬 실패! 강력한 일격! (${bigDmg} 피해)`, 'log-enemy');
+        this.showBanner('필살기 피격!', 'banner-danger');
+        this.spawnHitEffect('player', 'heavy');
+        this.spawnDamageNumber('player', bigDmg, { heavy: true });
+        this.applyBattleImpact('enemyHeavy');
+        this.updateBattleUI();
+        if (this.playerHp <= 0) {
+          this.logLine('필살기에 쓰러졌다...', 'log-enemy');
+          this.loseFloor();
+        }
+      }
+    }, 3000);
+    this._debuffTimers.push(gimmickTimer);
+  },
+
+  // 신수 전투 대사 표시
+  showCombatDialogue(situation) {
+    const beastId = this.selectedBeast;
+    const data = BEAST_DATA[beastId];
+    if (!data || !data.combatDialogues) return;
+    const pool = data.combatDialogues[situation];
+    if (!pool || pool.length === 0) return;
+
+    const text = pool[Math.floor(Math.random() * pool.length)];
+    const el = document.getElementById('tower-combat-dialogue');
+    const textEl = document.getElementById('tower-combat-dialogue-text');
+    if (!el || !textEl) return;
+
+    textEl.textContent = text;
+    el.classList.remove('hidden', 'dialogue-fade-out');
+    el.classList.add('dialogue-show');
+    clearTimeout(this._dialogueTimer);
+    this._dialogueTimer = setTimeout(() => {
+      el.classList.add('dialogue-fade-out');
+      setTimeout(() => {
+        el.classList.add('hidden');
+        el.classList.remove('dialogue-show', 'dialogue-fade-out');
+      }, 400);
+    }, 2500);
+  },
+
+  // 전투 결과 계산
+  computeCombatGrade() {
+    const totalParries = this.parryPerfectCount + this.parryGoodCount + this.parryFailCount;
+    const parryRate = totalParries > 0 ? ((this.parryPerfectCount + this.parryGoodCount) / totalParries) : 0;
+    const hpRatio = this.playerHp / this.maxHp;
+    const elapsedSec = Math.max(1, (Date.now() - this.fightStartedAt) / 1000);
+
+    let score = 0;
+    score += Math.min(25, this.comboPeak * 2.5);         // 최대 콤보 (25점)
+    score += Math.min(25, parryRate * 25);                // 패링 성공률 (25점)
+    score += Math.min(20, hpRatio * 20);                  // 남은 체력 (20점)
+    score += Math.min(15, Math.max(0, (30 - elapsedSec) * 0.5)); // 속도 보너스 (15점)
+    score += Math.min(15, this.skillUsedCount * 5);       // 스킬 사용 (15점)
+
+    score = Math.max(0, Math.min(100, Math.round(score)));
+
+    const gradeData = COMBAT_GRADES.find(g => score >= g.min) || COMBAT_GRADES[COMBAT_GRADES.length - 1];
+    return { score, ...gradeData, parryRate, elapsedSec };
+  },
+
+  // 전투 결과 리포트 표시
+  showCombatResult(won) {
+    const container = document.getElementById('tower-result-overlay');
+    if (!container) return;
+
+    const grade = this.computeCombatGrade();
+    const totalParries = this.parryPerfectCount + this.parryGoodCount + this.parryFailCount;
+
+    container.innerHTML = `
+      <div class="combat-result-card ${won ? 'win' : 'lose'}">
+        <div class="result-title">${won ? '전투 승리!' : '전투 패배...'}</div>
+        <div class="result-grade" style="color:${grade.color}">${grade.grade}</div>
+        <div class="result-desc">${grade.desc}</div>
+        <div class="result-stats">
+          <div class="result-stat"><span>최고 콤보</span><span>${this.comboPeak}</span></div>
+          <div class="result-stat"><span>패링 성공</span><span>${this.parryPerfectCount + this.parryGoodCount}/${totalParries}</span></div>
+          <div class="result-stat"><span>완벽 패링</span><span>${this.parryPerfectCount}</span></div>
+          <div class="result-stat"><span>총 피해량</span><span>${this.totalDamageDealt}</span></div>
+          <div class="result-stat"><span>받은 피해</span><span>${this.totalDamageTaken}</span></div>
+          <div class="result-stat"><span>전투 시간</span><span>${Math.round(grade.elapsedSec)}초</span></div>
+        </div>
+        <button class="result-close-btn" onclick="Tower.closeCombatResult()">확인</button>
+      </div>
+    `;
+    container.classList.remove('hidden');
+  },
+
+  closeCombatResult() {
+    const container = document.getElementById('tower-result-overlay');
+    if (container) {
+      container.classList.add('hidden');
+      container.innerHTML = '';
+    }
+  },
+
+  // UX: 핵심 메시지 오버레이 (리듬/패링 중에도 읽을 수 있는 큰 텍스트)
+  showKeyMessage(text, cls) {
+    const parent = document.getElementById('tower-battle');
+    if (!parent) return;
+    const msg = document.createElement('div');
+    msg.className = `combat-key-message ${cls || ''}`;
+    msg.textContent = text;
+    parent.appendChild(msg);
+    setTimeout(() => msg.remove(), 1600);
+  },
+
+  // 확률 기반 패시브 스킬 트리거 (탭 공격 시 확률 발동)
+  checkPassiveSkillTrigger() {
+    if (!this.inBattle || !this.currentEnemy) return;
+    const beastId = this.selectedBeast;
+    const beast = GameState.beasts[beastId];
+    if (!beast) return;
+
+    const chance = 0.08 + this.comboCount * 0.01;
+    if (Math.random() > chance) return;
+
+    const level = beast.level || 1;
+    const baseDmg = 5 + Math.floor(level / 8);
+
+    const passiveSkills = {
+      cheongryong: { name: '질풍', text: '바람이 적을 스쳤다!', dmg: baseDmg, color: '#4fc3f7' },
+      baekho: { name: '섬광', text: '번개같은 추가타!', dmg: Math.floor(baseDmg * 1.3), color: '#fff59d' },
+      jujak: { name: '잔화', text: '불꽃이 튀었다!', dmg: baseDmg, color: '#ef5350' },
+      hyeonmu: { name: '대지의 힘', text: '대지가 울렸다!', heal: Math.floor(baseDmg * 0.8), color: '#66bb6a' },
+      hwangryong: { name: '천광', text: '빛이 내리쳤다!', dmg: Math.floor(baseDmg * 1.5), color: '#ffd54f' }
+    };
+
+    const skill = passiveSkills[beastId] || passiveSkills.cheongryong;
+
+    if (skill.heal) {
+      this.playerHp = Math.min(this.maxHp, this.playerHp + skill.heal);
+      this.logLine(`[${skill.name}] ${skill.text} (+${skill.heal} 회복)`, 'log-good');
+      this.updateBattleUI();
+    } else {
+      this.currentEnemy.currentHp = Math.max(0, this.currentEnemy.currentHp - skill.dmg);
+      this.totalDamageDealt += skill.dmg;
+      this.logLine(`[${skill.name}] ${skill.text} (${skill.dmg} 추가 피해)`, 'log-critical');
+      this.spawnDamageNumber('enemy', skill.dmg, { critical: true });
+      this.updateEnemyPhase();
+      this.updateBattleUI();
+    }
+
+    this.showKeyMessage(skill.name + '!', 'msg-skill');
+    this.playSfx('hitEnemyHeavy', 120);
+  },
+
   clearBattleTimers() {
     if (this.enemyTurnTimer) {
       clearTimeout(this.enemyTurnTimer);
@@ -965,6 +1495,9 @@ const Tower = {
     this.inBattle = false;
     const vfxLayer = document.getElementById('tower-hit-vfx');
     if (vfxLayer) vfxLayer.innerHTML = '';
+
+    this.showCombatDialogue('win');
+    this.showCombatResult(true);
 
     const beastId = this.selectedBeast;
     const towerData = GameState.tower[beastId];
@@ -999,7 +1532,7 @@ const Tower = {
 
     setTimeout(() => {
       this.selectBeast(beastId);
-    }, 1500);
+    }, 2500);
   },
 
   // 패배
@@ -1016,6 +1549,9 @@ const Tower = {
     const vfxLayer = document.getElementById('tower-hit-vfx');
     if (vfxLayer) vfxLayer.innerHTML = '';
 
+    this.showCombatDialogue('crisis');
+    this.showCombatResult(false);
+
     const beastId = this.selectedBeast;
     const towerData = GameState.tower[beastId];
 
@@ -1024,6 +1560,6 @@ const Tower = {
     // 층수 리셋하지 않음 (재도전 가능)
     setTimeout(() => {
       this.selectBeast(beastId);
-    }, 1500);
+    }, 2500);
   }
 };

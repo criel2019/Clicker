@@ -86,7 +86,16 @@ const BEAST_DATA = {
       master: ['천룡의 기운이 깨어난다!', '하늘이 나를 부른다!', '각성이 눈앞이야!']
     },
     expressions: ['평온', '긴장', '고통', '위기', '다운'],
-    towerTheme: '호쾌한 성격의 반대 — 답답하고 소심한 적들과의 전투.'
+    towerTheme: '호쾌한 성격의 반대 — 답답하고 소심한 적들과의 전투.',
+    combatDialogues: {
+      start:        ['자, 날 막을 수 있으면 막아봐!', '허허~ 상대가 되겠어?', '청룡이 나셨다!'],
+      combo:        ['이 흐름이야! 멈추지 마!', '날 못 막잖아!', '어때, 대단하지?', '계속 몰아쳐!'],
+      skill:        ['용아참!!!', '이게 내 진짜 힘이야!', '받아라!!!!'],
+      skillReady:   ['각성이 차올라... 지금이야!', '준비됐어? 나는 됐거든!'],
+      crisis:       ['으으... 조금 위험한데!', '아직 안 끝났다고!', '이 정도로 포기할 내가 아냐!'],
+      parryPerfect: ['예상했어!', '완벽한 타이밍이잖아!', '봤어? 이게 나야!'],
+      win:          ['역시 나야! 대단하다고!', '어때, 내 말이 맞지?', '쉬웠어!']
+    }
   },
 
   baekho: {
@@ -150,7 +159,16 @@ const BEAST_DATA = {
       master: ['전우치의 도술이 내 안에!', '백호의 기운... 각성한다!', '이것이 본래의 내 힘!']
     },
     expressions: ['평온', '긴장', '고통', '위기', '다운'],
-    towerTheme: '도도한 성격의 반대 — 자기보다 잘난 척하는 적들과의 전투.'
+    towerTheme: '도도한 성격의 반대 — 자기보다 잘난 척하는 적들과의 전투.',
+    combatDialogues: {
+      start:        ['...상대는 되겠지.', '내 앞에 서다니, 용기는 있군.', '실망시키지 마라.'],
+      combo:        ['...좋아.', '이 기세, 유지해.', '흐름이 왔다.', '...계속.'],
+      skill:        ['백호폭. 받아라.', '이것이 나의 힘이다.', '...끝낸다.'],
+      skillReady:   ['기회다. 각성 일격을 쓴다.', '...지금이다.'],
+      crisis:       ['...상처를 입었군.', '이 정도로 무너지진 않아.', '...분하군.'],
+      parryPerfect: ['예상보다 쉬웠다.', '...이 정도면 합격이군.', '읽었다.'],
+      win:          ['처음부터 결과는 정해져 있었어.', '...고생했어.', '당연한 결과다.']
+    }
   },
 
   jujak: {
@@ -214,7 +232,16 @@ const BEAST_DATA = {
       master: ['불새의 날개가 펼쳐진다!', '불꽃이 영원히 타오른다!', '주작의 각성이 시작돼!']
     },
     expressions: ['평온', '긴장', '고통', '위기', '다운'],
-    towerTheme: '맘씨 좋은 성격의 반대 — 약자를 괴롭히는 적들과의 전투.'
+    towerTheme: '맘씨 좋은 성격의 반대 — 약자를 괴롭히는 적들과의 전투.',
+    combatDialogues: {
+      start:        ['시작한다! 불꽃을 봐!', '재밌겠다!', '타오르자!'],
+      combo:        ['좋아좋아!', '계속 이대로!', '불꽃처럼 타오르자!', '멈추지 마!'],
+      skill:        ['작화진! 불길로 태워버려!', '타라라라!', '불꽃 폭발!!!'],
+      skillReady:   ['기세 max! 불태울게!', '각성 준비 완료! 가자!'],
+      crisis:       ['아야야... 뜨거워!', '포기 안 해!', '아직 불씨가 남아있어!'],
+      parryPerfect: ['봤지? 나도 할 수 있어!', '완벽!', '예이!'],
+      win:          ['이겼다! 불꽃 승리!', '우와 신나!', '역시 나야~!']
+    }
   },
 
   hyeonmu: {
@@ -278,7 +305,16 @@ const BEAST_DATA = {
       master: ['현천의 괴력이 깨어난다!', '산이 흔들려도 끄떡없어!', '현무의 각성... 이건가?']
     },
     expressions: ['평온', '긴장', '고통', '위기', '다운'],
-    towerTheme: '바보같은 성격의 반대 — 머리 쓰는 트릭 계열 적들과의 전투.'
+    towerTheme: '바보같은 성격의 반대 — 머리 쓰는 트릭 계열 적들과의 전투.',
+    combatDialogues: {
+      start:        ['...시작합니다.', '방패가 되겠습니다.', '함께라면 이길 수 있습니다.'],
+      combo:        ['...좋습니다.', '흐름이 왔군요.', '계속합니다.', '...집중.'],
+      skill:        ['현무진. 지켜드리겠습니다.', '방패와 반격.', '...받아라.'],
+      skillReady:   ['...각성 준비가 됐습니다.', '지금입니다.'],
+      crisis:       ['...버텨야 합니다.', '아직... 괜찮습니다.', '쓰러지진 않겠습니다.'],
+      parryPerfect: ['...예측했습니다.', '완벽한 방어.', '...예상 범위 내.'],
+      win:          ['...잘 싸웠습니다.', '끝났군요.', '함께해서 이겼습니다.']
+    }
   },
 
   hwangryong: {
@@ -343,7 +379,16 @@ const BEAST_DATA = {
     },
     expressions: ['평온', '긴장', '고통', '위기', '다운'],
     towerTheme: '공허한 성격의 반대 — 강한 자아와 신념을 가진 적들과의 전투.',
-    unlockCondition: 'all_awakened' // 4신수 모두 각성 후 해금
+    unlockCondition: 'all_awakened', // 4신수 모두 각성 후 해금
+    combatDialogues: {
+      start:        ['황룡이 강림했다.', '감히 맞서는가.', '...하늘이 지켜본다.'],
+      combo:        ['하늘이 응답한다.', '막을 수 없다!', '천지가 진동한다.', '...멈추지 않겠다.'],
+      skill:        ['황룡천강!!!', '하늘이 내리친다!!!', '천지를 뒤흔드는 일격!!!'],
+      skillReady:   ['하늘의 힘이 모였다!', '천강이 폭발한다...'],
+      crisis:       ['...내가 이 정도란 말인가.', '아직 끝나지 않았다!', '황룡은 쓰러지지 않는다!'],
+      parryPerfect: ['예견된 승리다.', '천하의 흐름을 읽었다.', '...당연하다.'],
+      win:          ['황룡의 위용을 보았느냐.', '이것이 하늘의 뜻이다.', '...끝이다.']
+    }
   }
 };
 
@@ -559,3 +604,81 @@ const SKIN_DATA = {
     { id: 'skin_hr_daily', name: '일상복', cost: 0, costType: 'cash' }
   ]
 };
+
+// ===== 적별 고유 패턴 시스템 =====
+const ENEMY_PATTERNS = {
+  // 청룡 탑 적
+  '답답한 병사':   { unique: [{ name: '주춤거림', multiplier: 0.55, hits: 1, hitText: '우물쭈물하다 찌르기!', heavy: false, debuff: 'slow' }] },
+  '소심한 기사':   { unique: [{ name: '방패 뒤 찌르기', multiplier: 1.1, hits: 1, hitText: '방패 뒤에서 기습 찌르기!', heavy: false }] },
+  '우유부단한 마법사': { unique: [{ name: '어설픈 주문', multiplier: 0.7, hits: 3, hitText: '어설픈 마법이 흩뿌려졌다!', heavy: false }] },
+  '겁쟁이 장군':   { unique: [{ name: '부하 소환', multiplier: 0.5, hits: 2, hitText: '부하를 앞세워 공격했다!', heavy: false }, { name: '비겁한 지시', multiplier: 1.2, hits: 1, hitText: '안전한 곳에서 명령을 내렸다!', heavy: true }] },
+  '비겁한 암살자':  { unique: [{ name: '뒤치기', multiplier: 1.5, hits: 1, hitText: '등 뒤에서 기습!', heavy: true, unparryable: true }] },
+  // 백호 탑 적
+  '잘난 척 귀족':   { unique: [{ name: '비웃음', multiplier: 0.4, hits: 1, hitText: '조롱하며 정신을 흔들었다!', heavy: false, debuff: 'taunt' }] },
+  '자칭 천재':     { unique: [{ name: '계산된 일격', multiplier: 1.3, hits: 1, hitText: '약점을 정확히 노렸다!', heavy: true }] },
+  '거만한 마법사':  { unique: [{ name: '시선 차단', multiplier: 0.8, hits: 1, hitText: '눈부신 빛으로 시야를 가렸다!', heavy: false, debuff: 'blind' }] },
+  '허세 기사':     { unique: [{ name: '과시 베기', multiplier: 1.4, hits: 1, hitText: '허세 가득한 대검 베기!', heavy: true }] },
+  '나르시스트 왕자': { unique: [{ name: '거울 반사', multiplier: 1.0, hits: 1, hitText: '거울로 빛을 반사해 공격!', heavy: false, debuff: 'blind' }, { name: '왕자의 분노', multiplier: 1.6, hits: 1, hitText: '체면을 건드리자 폭발했다!', heavy: true }] },
+  // 주작 탑 적
+  '약자 괴롭히는 깡패': { unique: [{ name: '약자 압박', multiplier: 0.9, hits: 2, hitText: '약한 곳만 골라 때렸다!', heavy: false }] },
+  '비열한 도적':    { unique: [{ name: '독 바르기', multiplier: 0.7, hits: 1, hitText: '독 묻은 칼로 베었다!', heavy: false, debuff: 'poison' }, { name: '뒤치기', multiplier: 1.3, hits: 1, hitText: '뒤에서 기습!', heavy: true, unparryable: true }] },
+  '잔인한 사냥꾼':  { unique: [{ name: '덫 설치', multiplier: 0.6, hits: 1, hitText: '덫에 발이 걸렸다!', heavy: false, debuff: 'slow' }] },
+  '무자비한 용병':  { unique: [{ name: '연속 베기', multiplier: 0.65, hits: 3, hitText: '무자비하게 3연타!', heavy: true }] },
+  '냉혈한 암흑마법사': { unique: [{ name: '어둠 속박', multiplier: 0.8, hits: 1, hitText: '어둠의 사슬이 몸을 감쌌다!', heavy: false, debuff: 'slow' }, { name: '그림자 폭발', multiplier: 1.5, hits: 1, hitText: '그림자가 폭발했다!', heavy: true }] },
+  // 현무 탑 적
+  '교활한 사기꾼':  { unique: [{ name: '속임수', multiplier: 0.9, hits: 1, hitText: '가짜 동작 후 기습!', heavy: false, debuff: 'taunt' }] },
+  '퍼즐 마스터':   { unique: [{ name: '혼란 유도', multiplier: 0.7, hits: 2, hitText: '복잡한 움직임으로 혼란!', heavy: false, debuff: 'blind' }] },
+  '트릭스터':      { unique: [{ name: '환영 공격', multiplier: 0.5, hits: 3, hitText: '환영을 섞어 혼란을 줬다!', heavy: false }] },
+  '미궁의 지배자':  { unique: [{ name: '미궁의 저주', multiplier: 1.0, hits: 1, hitText: '미궁의 기운이 몸을 옭아맸다!', heavy: true, debuff: 'slow' }, { name: '공간 왜곡', multiplier: 1.4, hits: 1, hitText: '공간이 뒤틀려 강타!', heavy: true }] },
+  '환술사':        { unique: [{ name: '환각 유도', multiplier: 0.6, hits: 2, hitText: '환각 속에서 공격!', heavy: false, debuff: 'blind' }] },
+  // 황룡 탑 적
+  '신념의 기사':   { unique: [{ name: '성스러운 일격', multiplier: 1.3, hits: 1, hitText: '신념을 담은 강렬한 일격!', heavy: true }] },
+  '철의 수도승':   { unique: [{ name: '철벽 반격', multiplier: 1.1, hits: 1, hitText: '방어 직후 빈틈을 파고들었다!', heavy: false }, { name: '인내의 권', multiplier: 1.5, hits: 1, hitText: '참아온 힘을 한 방에!', heavy: true }] },
+  '불굴의 전사':   { unique: [{ name: '불굴', multiplier: 1.2, hits: 1, hitText: '쓰러져도 다시 일어나 공격!', heavy: true, revive: true }] },
+  '맹세의 성기사':  { unique: [{ name: '정의 심판', multiplier: 1.4, hits: 1, hitText: '정의의 이름으로 심판!', heavy: true }] },
+  '진실의 수호자':  { unique: [{ name: '진실의 눈', multiplier: 0.8, hits: 1, hitText: '진실의 눈으로 꿰뚫어봤다!', heavy: false, debuff: 'taunt' }, { name: '수호의 맹격', multiplier: 1.6, hits: 2, hitText: '수호의 힘으로 맹렬히 공격!', heavy: true }] }
+};
+
+// 적 접두사 (엘리트/강화 적용)
+const ENEMY_PREFIXES = {
+  분노한: { atkMult: 1.35, hpMult: 1.0, attackRateMult: 1.2, color: '#ff6b6b' },
+  민첩한: { atkMult: 1.0, hpMult: 0.85, attackRateMult: 1.4, color: '#7ddf7f' },
+  방어형: { atkMult: 0.9, hpMult: 1.5, attackRateMult: 0.9, color: '#8cd8ff' },
+  광폭한: { atkMult: 1.5, hpMult: 1.2, attackRateMult: 1.3, color: '#ff9a9a' },
+  교활한: { atkMult: 1.1, hpMult: 1.1, attackRateMult: 1.1, color: '#ffd166' }
+};
+
+// 디버프 정의
+const DEBUFF_TYPES = {
+  slow:   { name: '속박', duration: 2000, icon: '⛓', color: '#8cd8ff', desc: '탭 속도 50% 감소' },
+  blind:  { name: '암흑', duration: 2500, icon: '🌑', color: '#666', desc: '패링 타이밍 UI 숨김' },
+  taunt:  { name: '도발', duration: 0, icon: '😤', color: '#ff6b6b', desc: '다음 적 공격이 강공' },
+  poison: { name: '독', duration: 3, icon: '☠', color: '#8bc34a', desc: '매 턴 지속 피해' }
+};
+
+// 스킬 시각 연출 데이터
+const BEAST_SKILL_VFX = {
+  cheongryong: { name: '용아참', icon: '🐉', color: '#4fc3f7', glow: 'rgba(79,195,247,0.5)', slashColor: 'hue-rotate(190deg)' },
+  baekho:      { name: '백호폭', icon: '🐅', color: '#fff59d', glow: 'rgba(255,245,157,0.5)', slashColor: 'hue-rotate(50deg) saturate(2)' },
+  jujak:       { name: '작화진', icon: '🔥', color: '#ef5350', glow: 'rgba(239,83,80,0.5)', slashColor: 'hue-rotate(0deg) saturate(3)' },
+  hyeonmu:     { name: '현무진', icon: '🐢', color: '#66bb6a', glow: 'rgba(102,187,106,0.5)', slashColor: 'hue-rotate(110deg)' },
+  hwangryong:  { name: '황룡천강', icon: '⚡', color: '#ffd54f', glow: 'rgba(255,213,79,0.6)', slashColor: 'hue-rotate(40deg) saturate(3) brightness(1.5)' }
+};
+
+// 탑 전용 신수별 스킬 (스토리 스킬과 유사하지만 약간 다른 버전)
+const TOWER_BEAST_SKILLS = {
+  cheongryong: { name: '용아섬', desc: '관통 3연격', type: 'multi', hits: 3, baseMult: 0.9, stagger: 1 },
+  baekho:      { name: '호아충', desc: '강타 + 실드', type: 'shield', baseMult: 2.6, stagger: 0 },
+  jujak:       { name: '봉화열', desc: '즉발 + DOT 3턴', type: 'dot', baseMult: 1.2, dotMult: 0.6, dotTicks: 3, stagger: 0 },
+  hyeonmu:     { name: '현무벽', desc: '중타 + 회복', type: 'heal', baseMult: 1.7, healPct: 0.25, stagger: 0 },
+  hwangryong:  { name: '천강파', desc: '초강타', type: 'ultra', baseMult: 4.2, stagger: 1 }
+};
+
+// 전투 결과 등급
+const COMBAT_GRADES = [
+  { grade: 'S', min: 80, color: '#ffd54f', desc: '완벽한 전투!', goldMult: 1.5 },
+  { grade: 'A', min: 60, color: '#8cd8ff', desc: '훌륭한 전투!', goldMult: 1.25 },
+  { grade: 'B', min: 40, color: '#7ddf7f', desc: '좋은 전투.',   goldMult: 1.1 },
+  { grade: 'C', min: 20, color: '#ffb74d', desc: '무난한 전투.',  goldMult: 1.0 },
+  { grade: 'D', min: 0,  color: '#ff8f8f', desc: '분발하자.',     goldMult: 0.9 }
+];

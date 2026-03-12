@@ -139,19 +139,11 @@
               <span id="enemy-name"></span>
               <span id="enemy-hp-text"></span>
             </div>
+            <div id="combat-enemy-portrait" class="enemy-portrait"></div>
             <div class="combat-hp-wrap enemy">
               <div class="combat-hp-label">적 체력</div>
               <div class="combat-hp-bar">
                 <div id="enemy-hp-fill"></div>
-              </div>
-            </div>
-            <div class="combat-break-wrap">
-              <div class="combat-break-label-row">
-                <span class="combat-break-label">브레이크</span>
-                <span id="enemy-break-text">0%</span>
-              </div>
-              <div class="combat-break-bar">
-                <div id="enemy-break-fill"></div>
               </div>
             </div>
             <div class="combat-hp-wrap player">
@@ -163,24 +155,16 @@
                 <div id="player-hp-fill"></div>
               </div>
             </div>
-            <div id="combat-rhythm-state">
-              <span id="combat-rhythm-text">리듬 x1.00</span>
-              <span id="combat-focus-text">집중 0%</span>
+            <div id="combat-momentum-state">
+              <span id="combat-combo-text">콤보 0</span>
+              <span id="combat-momentum-text">기세 0%</span>
             </div>
-            <div id="combat-rhythm-guide">한 박자당 1회 판정. 파란 구간 PERFECT / 초록 구간 GOOD</div>
-            <div class="rhythm-meter" id="combat-rhythm-meter">
-              <div class="rhythm-zone rhythm-good"></div>
-              <div class="rhythm-zone rhythm-perfect"></div>
-              <div class="rhythm-cursor" id="combat-rhythm-cursor"></div>
-            </div>
+            <div id="combat-debuff-bar"></div>
             <div id="combat-focus-bar">
               <div id="combat-focus-fill"></div>
             </div>
-            <div id="combat-burst-state">
-              <span id="combat-burst-text">버스트 0%</span>
-            </div>
-            <div id="combat-burst-bar">
-              <div id="combat-burst-fill"></div>
+            <div id="combat-beast-dialogue" class="hidden">
+              <p id="combat-beast-dialogue-text"></p>
             </div>
             <div id="combat-reward-state">
               <span id="combat-streak-text">연승 0</span>
@@ -189,12 +173,14 @@
             <div id="combat-intent"></div>
             <div id="combat-feedback" aria-live="polite"></div>
             <div id="combat-log"></div>
+            <div id="combat-banner" class="combat-banner"></div>
             <div id="combat-actions">
               <button id="combat-tap-btn" onclick="Combat.tap()"><span class="btn-icon ui-icon icon-sword" aria-hidden="true"></span><span>공격!</span></button>
               <button id="combat-parry-btn" onclick="Combat.parry()" disabled>패링 대기</button>
               <button id="combat-skill-btn" onclick="Combat.useSkill()" disabled>각성 일격 (0%)</button>
             </div>
           </div>
+          <div id="combat-result-overlay" class="hidden"></div>
           <!-- ?ㅽ궢 ?몃뵒耳?댄꽣 -->
           <div id="skip-indicator">SKIP ON</div>
           <!-- ?ㅽ넗由?而⑦듃濡?諛?-->
@@ -282,6 +268,7 @@
           </div>
           <div id="tower-battle" class="hidden">
             <div id="tower-hit-vfx" class="hit-vfx-layer" aria-hidden="true"></div>
+            <div id="tower-enemy-portrait" class="enemy-portrait"></div>
             <div id="tower-enemy-info"></div>
             <div class="tower-hp-wrap enemy">
               <div class="tower-hp-label">적 체력</div>
@@ -298,6 +285,7 @@
               <span id="tower-rhythm-text">리듬 x1.00</span>
               <span id="tower-focus-text">집중 0%</span>
             </div>
+            <div id="tower-debuff-bar"></div>
             <div id="tower-rhythm-guide">한 박자당 1회 판정. 파란 구간 PERFECT / 초록 구간 GOOD</div>
             <div class="rhythm-meter" id="tower-rhythm-meter">
               <div class="rhythm-zone rhythm-good"></div>
@@ -305,15 +293,18 @@
               <div class="rhythm-cursor" id="tower-rhythm-cursor"></div>
             </div>
             <div id="tower-focus-bar"><div id="tower-focus-fill"></div></div>
+            <div id="tower-combat-dialogue" class="hidden"><p id="tower-combat-dialogue-text"></p></div>
             <div id="tower-intent"></div>
             <div id="tower-feedback" aria-live="polite"></div>
             <div id="tower-combat-log"></div>
+            <div id="tower-banner" class="combat-banner"></div>
             <div id="tower-actions">
               <button id="tower-tap-btn" onclick="Tower.tap()"><span class="btn-icon ui-icon icon-sword" aria-hidden="true"></span><span>공격!</span></button>
               <button id="tower-parry-btn" onclick="Tower.parry()" disabled>패링 대기</button>
               <button id="tower-skill-btn" onclick="Tower.useSkill()" disabled>각성 일격 (0%)</button>
             </div>
           </div>
+          <div id="tower-result-overlay" class="hidden"></div>
         </div>
       </section>
     </main>
