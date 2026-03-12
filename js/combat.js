@@ -203,10 +203,7 @@ const Combat = {
   // 탭 (공격)
   tap() {
     if (!this.active) return;
-    if (this.pendingEnemyStrike) {
-      this.showFeedback('parryWarning');
-      return;
-    }
+    // 적 공격 중에도 리듬 공격 허용 (패링은 별도 버튼)
     const now = Date.now();
     if (now < this.inputLockedUntil) return;
     // 속박 디버프: 탭 속도 50% 감소
@@ -495,8 +492,12 @@ const Combat = {
     this.updateCombatStateUI();
     this.updateContextBar();
 
+    // 패링 페이즈 시각 효과
+    const combatEl = document.getElementById('combat-ui');
+    if (combatEl) combatEl.classList.add('parry-phase');
     this.enemyTurnTimer = setTimeout(() => {
       this.enemyTurnTimer = null;
+      if (combatEl) combatEl.classList.remove('parry-phase');
       this.resolveEnemyStrike();
     }, windup);
   },

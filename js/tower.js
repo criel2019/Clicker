@@ -376,13 +376,10 @@ const Tower = {
     }
   },
 
-  // 탭 공격
+  // 탭 공격 (적 공격 중에도 리듬 유지)
   tap() {
     if (!this.inBattle || !this.currentEnemy) return;
-    if (this.pendingEnemyStrike) {
-      this.showRhythmFeedback('parry');
-      return;
-    }
+    // 적 공격 중이어도 리듬 공격 허용 (패링은 별도 버튼으로)
 
     const now = Date.now();
     if (now < this.inputLockedUntil) return;
@@ -685,8 +682,12 @@ const Tower = {
     }
     this.showRhythmFeedback('parry');
     this.updateBattleUI();
+    // 패링 페이즈 시각 효과
+    const battleEl = document.getElementById('tower-battle');
+    if (battleEl) battleEl.classList.add('parry-phase');
     this.enemyTurnTimer = setTimeout(() => {
       this.enemyTurnTimer = null;
+      if (battleEl) battleEl.classList.remove('parry-phase');
       this.resolveEnemyStrike();
     }, windup);
   },
