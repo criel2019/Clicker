@@ -329,6 +329,27 @@ const Tower = {
       if (this.currentEnemy.isBoss) battleArea.classList.add('tower-enemy-boss');
       else if (this.currentEnemy.isElite) battleArea.classList.add('tower-enemy-elite');
     }
+
+    // ★ 아레나 초기화: 플레이어 초상화 + 적 아이콘 ★
+    const playerPortrait = document.getElementById('tower-player-portrait');
+    if (playerPortrait) {
+      const portraitPath = getBeastPortraitPath(beastId);
+      if (portraitPath) {
+        playerPortrait.src = portraitPath;
+        playerPortrait.alt = (BEAST_DATA[beastId] || {}).name || beastId;
+      } else {
+        playerPortrait.src = '';
+        playerPortrait.alt = '';
+      }
+    }
+    const enemyPortrait = document.getElementById('tower-enemy-portrait');
+    if (enemyPortrait) {
+      enemyPortrait.textContent = this.currentEnemy.icon || '⚔️';
+    }
+    // 전투 상태 라인 초기화
+    const statusLine = document.getElementById('tower-battle-status');
+    if (statusLine) statusLine.textContent = '';
+
     document.getElementById('tower-combat-log').innerHTML = '';
     const vfxLayer = document.getElementById('tower-hit-vfx');
     if (vfxLayer) vfxLayer.innerHTML = '';
@@ -1431,6 +1452,15 @@ const Tower = {
     flash.className = `hit-vfx-flash ${isPlayerHit ? 'enemy' : 'ally'}${heavy ? ' heavy' : ''}`;
     layer.appendChild(flash);
     setTimeout(() => flash.remove(), 200);
+
+    // 아레나 캐릭터 히트 리액션
+    const hitSide = document.getElementById(isPlayerHit ? 'tower-player-side' : 'tower-enemy-side');
+    if (hitSide) {
+      hitSide.classList.remove('arena-hit', 'arena-hit-heavy');
+      void hitSide.offsetWidth;
+      hitSide.classList.add(heavy ? 'arena-hit-heavy' : 'arena-hit');
+      setTimeout(() => hitSide.classList.remove('arena-hit', 'arena-hit-heavy'), heavy ? 400 : 250);
+    }
   },
 
   spawnDamageNumber(target, amount, options = {}) {
@@ -1449,7 +1479,20 @@ const Tower = {
     setTimeout(() => dmg.remove(), options.critical ? 760 : 620);
   },
 
+  // 1줄 전투 상태 업데이트
+  updateBattleStatus(text) {
+    const el = document.getElementById('tower-battle-status');
+    if (!el) return;
+    el.textContent = text;
+    el.classList.remove('status-flash');
+    void el.offsetWidth; // reflow
+    el.classList.add('status-flash');
+  },
+
   logLine(text, className) {
+    // 전투 상태 라인도 갱신
+    this.updateBattleStatus(text);
+
     const log = document.getElementById('tower-combat-log');
     if (!log) return;
 

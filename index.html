@@ -270,42 +270,61 @@
           </div>
           <div id="tower-battle" class="hidden">
             <div id="tower-event-strip" class="combat-event-strip"></div>
-            <div id="tower-hit-vfx" class="hit-vfx-layer" aria-hidden="true"></div>
-            <div id="tower-enemy-portrait" class="enemy-portrait"></div>
+            <div id="tower-debuff-bar"></div>
+
+            <!-- 상단: 층 정보 -->
             <div id="tower-enemy-info"></div>
-            <div class="tower-hp-wrap enemy">
-              <div class="tower-hp-label">적 체력</div>
-              <div class="tower-hp-bar"><div id="tower-enemy-hp-fill"></div></div>
-            </div>
-            <div class="tower-hp-wrap player">
-              <div class="tower-hp-row">
-                <span class="tower-hp-label">나의 기력</span>
-                <span id="tower-player-hp-text"></span>
+
+            <!-- ★ 아레나: 캐릭터 vs 적 ★ -->
+            <div id="tower-arena">
+              <div id="tower-hit-vfx" class="hit-vfx-layer" aria-hidden="true"></div>
+              <div id="tower-player-side" class="arena-fighter">
+                <img id="tower-player-portrait" class="arena-portrait" src="" alt="">
+                <div class="arena-hp-wrap player">
+                  <div class="arena-hp-bar"><div id="tower-player-hp-fill"></div></div>
+                  <span id="tower-player-hp-text" class="arena-hp-text"></span>
+                </div>
               </div>
-              <div class="tower-hp-bar"><div id="tower-player-hp-fill"></div></div>
+              <div id="tower-vs-indicator">VS</div>
+              <div id="tower-enemy-side" class="arena-fighter">
+                <div id="tower-enemy-portrait" class="arena-enemy-icon"></div>
+                <div class="arena-hp-wrap enemy">
+                  <div class="arena-hp-bar"><div id="tower-enemy-hp-fill"></div></div>
+                </div>
+              </div>
             </div>
+
+            <!-- 1줄 전투 상태 -->
+            <div id="tower-battle-status"></div>
+
+            <!-- 리듬 영역 -->
             <div id="tower-rhythm-state">
               <span id="tower-rhythm-text">리듬 x1.00</span>
               <span id="tower-focus-text">집중 0%</span>
             </div>
-            <div id="tower-debuff-bar"></div>
-            <div id="tower-rhythm-guide">한 박자당 1회 판정. 파란 구간 PERFECT / 초록 구간 GOOD</div>
             <div class="rhythm-meter" id="tower-rhythm-meter">
               <div class="rhythm-zone rhythm-good"></div>
               <div class="rhythm-zone rhythm-perfect"></div>
               <div class="rhythm-cursor" id="tower-rhythm-cursor"></div>
             </div>
             <div id="tower-focus-bar"><div id="tower-focus-fill"></div></div>
-            <div id="tower-combat-dialogue" class="hidden"><p id="tower-combat-dialogue-text"></p></div>
-            <div id="tower-intent"></div>
+
+            <!-- 피드백 -->
             <div id="tower-feedback" aria-live="polite"></div>
-            <div id="tower-combat-log"></div>
             <div id="tower-banner" class="combat-banner"></div>
+
+            <!-- 액션 버튼 -->
             <div id="tower-actions">
               <button id="tower-tap-btn" onclick="Tower.tap()"><span class="btn-icon ui-icon icon-sword" aria-hidden="true"></span><span>공격!</span></button>
               <button id="tower-parry-btn" onclick="Tower.parry()" disabled>패링 대기</button>
               <button id="tower-skill-btn" onclick="Tower.useSkill()" disabled>각성 일격 (0%)</button>
             </div>
+
+            <!-- 숨김 요소 (JS 참조용) -->
+            <div id="tower-rhythm-guide" class="hidden"></div>
+            <div id="tower-intent" class="hidden"></div>
+            <div id="tower-combat-dialogue" class="hidden"><p id="tower-combat-dialogue-text"></p></div>
+            <div id="tower-combat-log" class="hidden"></div>
           </div>
           <div id="tower-result-overlay" class="hidden"></div>
         </div>
