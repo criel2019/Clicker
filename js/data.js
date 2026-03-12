@@ -682,3 +682,78 @@ const COMBAT_GRADES = [
   { grade: 'C', min: 20, color: '#ffb74d', desc: '무난한 전투.',  goldMult: 1.0 },
   { grade: 'D', min: 0,  color: '#ff8f8f', desc: '분발하자.',     goldMult: 0.9 }
 ];
+
+// ===== 연계 패턴 (Chain Attack) 시스템 =====
+const CHAIN_ATTACK_DATA = {
+  '겁쟁이 장군':       { chain: ['견제', '견제', '강공'], chainText: '연계 공격! 3연속 패링!' },
+  '나르시스트 왕자':   { chain: ['비웃음', '거울 반사', '왕자의 분노'], chainText: '분노의 연계!' },
+  '냉혈한 암흑마법사': { chain: ['어둠 속박', '그림자 폭발'], chainText: '어둠의 연계!' },
+  '미궁의 지배자':     { chain: ['미궁의 저주', '공간 왜곡', '미궁의 저주'], chainText: '미궁 연쇄!' },
+  '진실의 수호자':     { chain: ['진실의 눈', '수호의 맹격'], chainText: '수호 연계!' }
+};
+
+// ===== 속성 시스템 =====
+const BEAST_ELEMENTS = {
+  cheongryong: 'wind',
+  baekho: 'lightning',
+  jujak: 'fire',
+  hyeonmu: 'earth',
+  hwangryong: 'light'
+};
+
+const ELEMENT_ADVANTAGE = {
+  wind: 'earth',        // 풍 > 지
+  earth: 'lightning',   // 지 > 뇌
+  lightning: 'wind',    // 뇌 > 풍 (순환)
+  fire: 'wind',         // 화 > 풍
+  light: 'fire'         // 광 > 화
+};
+
+const ELEMENT_NAMES = {
+  wind: '풍', lightning: '뇌', fire: '화', earth: '지', light: '광'
+};
+
+const ELEMENT_ICONS = {
+  wind: '🌀', lightning: '⚡', fire: '🔥', earth: '🌿', light: '✨'
+};
+
+const ELEMENT_COLORS = {
+  wind: '#4fc3f7', lightning: '#fff59d', fire: '#ef5350', earth: '#66bb6a', light: '#ffd54f'
+};
+
+// 적 속성 풀 (탑 적에게 랜덤 부여)
+const ENEMY_ELEMENT_POOL = ['wind', 'lightning', 'fire', 'earth', 'light'];
+
+// ===== 적 아이콘 시스템 =====
+const ENEMY_ICONS = {
+  // 청룡 탑 적
+  '답답한 병사': '🗡️',
+  '소심한 기사': '🛡️',
+  '우유부단한 마법사': '🧙',
+  '겁쟁이 장군': '⚔️',
+  '비겁한 암살자': '🗡️',
+  // 백호 탑 적
+  '잘난 척 귀족': '👑',
+  '자칭 천재': '🎓',
+  '거만한 마법사': '🧙',
+  '허세 기사': '⚔️',
+  '나르시스트 왕자': '🤴',
+  // 주작 탑 적
+  '약자 괴롭히는 깡패': '👊',
+  '비열한 도적': '🗡️',
+  '잔인한 사냥꾼': '🏹',
+  '무자비한 용병': '⚔️',
+  '냉혈한 암흑마법사': '🧙',
+  // 현무 탑 적
+  '교활한 사기꾼': '🎭',
+  '퍼즐 마스터': '🧩',
+  '트릭스터': '🃏',
+  '미궁의 지배자': '🌀',
+  '환술사': '🔮',
+  // 황룡 탑 적
+  '신념의 기사': '⚔️',
+  '철의 수도승': '🥋',
+  '불굴의 전사': '💪',
+  '맹세의 성기사': '🛡️',
+  '진실의 수호자': '👁️'
+};

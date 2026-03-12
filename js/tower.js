@@ -89,6 +89,14 @@ const Tower = {
   comboPeak: 0,
   fightStartedAt: 0,
   _crisisDialogueShown: false,
+  perfectStreak: 0,         // 연속 PERFECT 카운트
+  absoluteRhythm: false,    // 절대 리듬 모드
+  _absoluteRhythmTimer: null,
+  // 연계 패턴 시스템
+  chainQueue: [],
+  chainIndex: 0,
+  chainActive: false,
+  chainAllParried: true,
 
   playSfx(type = 'page', throttledMs = 0) {
     if (typeof StoryAudio === 'undefined' || !StoryAudio) return;
@@ -121,14 +129,63 @@ const Tower = {
     };
 
     const namePool = themes[beastId] || themes.cheongryong;
-    const name = namePool[Math.min(floor - 1, namePool.length - 1) % namePool.length];
+    const isBoss = floor % 5 === 0;
+    const isElite = !isBoss && floor > 3 && Math.random() < 0.25;
+
+    // 보스층: 해당 신수 테마의 마지막 적 (가장 강한 적)
+    let baseName;
+    if (isBoss) {
+      baseName = namePool[Math.min(Math.floor(floor / 5) - 1, namePool.length - 1) % namePool.length];
+    } else {
+      baseName = namePool[Math.min(floor - 1, namePool.length - 1) % namePool.length];
+    }
+
+    let hp = 30 + floor * 20;
+    let attack = 5 + floor * 3;
+    let attackRate = Math.min(0.7, 0.3 + floor * 0.04);
+    let prefix = '';
+    let prefixData = null;
+
+    // 5n층 보스: 체력/공격력 대폭 증가
+    if (isBoss) {
+      hp = Math.floor(hp * 1.8);
+      attack = Math.floor(attack * 1.4);
+      attackRate = Math.min(0.85, attackRate + 0.1);
+    }
+
+    // 엘리트: 접두사 적용
+    if (isElite && typeof ENEMY_PREFIXES !== 'undefined') {
+      const prefixKeys = Object.keys(ENEMY_PREFIXES);
+      const pk = prefixKeys[Math.floor(Math.random() * prefixKeys.length)];
+      prefixData = ENEMY_PREFIXES[pk];
+      prefix = pk + ' ';
+      hp = Math.floor(hp * (prefixData.hpMult || 1));
+      attack = Math.floor(attack * (prefixData.atkMult || 1));
+      attackRate = Math.min(0.85, attackRate * (prefixData.attackRateMult || 1));
+    }
+
     const suffix = floor > 5 ? ` Lv.${floor}` : '';
+    const bossTag = isBoss ? ' [BOSS]' : '';
+
+    // 속성 부여 (랜덤)
+    const element = (typeof ENEMY_ELEMENT_POOL !== 'undefined')
+      ? ENEMY_ELEMENT_POOL[Math.floor(Math.random() * ENEMY_ELEMENT_POOL.length)]
+      : null;
+
+    // 아이콘 부여
+    const icon = (typeof ENEMY_ICONS !== 'undefined') ? (ENEMY_ICONS[baseName] || '⚔️') : '⚔️';
 
     return {
-      name: `${name}${suffix}`,
-      hp: 30 + floor * 20,
-      attack: 5 + floor * 3,
-      attackRate: Math.min(0.7, 0.3 + floor * 0.04)
+      name: `${prefix}${baseName}${suffix}${bossTag}`,
+      baseName,
+      hp,
+      attack,
+      attackRate,
+      isBoss,
+      isElite,
+      prefixData,
+      element,
+      icon
     };
   },
 
@@ -254,6 +311,9 @@ const Tower = {
     this.comboPeak = 0;
     this.fightStartedAt = Date.now();
     this._crisisDialogueShown = false;
+    this.perfectStreak = 0;
+    this.absoluteRhythm = false;
+    if (this._absoluteRhythmTimer) { clearTimeout(this._absoluteRhythmTimer); this._absoluteRhythmTimer = null; }
     this.stopRhythmMeter();
     this.clearFeedbackTimer();
     this.clearBattleTimers();
@@ -262,6 +322,13 @@ const Tower = {
     document.getElementById('tower-battle').classList.remove('hidden');
     document.getElementById('tower-battle').classList.remove('danger');
     document.getElementById('tower-enemy-info').textContent = `${towerData.currentFloor}층 — ${this.currentEnemy.name}`;
+    // 보스/엘리트 표시
+    const battleArea = document.getElementById('tower-battle');
+    if (battleArea) {
+      battleArea.classList.remove('tower-enemy-elite', 'tower-enemy-boss');
+      if (this.currentEnemy.isBoss) battleArea.classList.add('tower-enemy-boss');
+      else if (this.currentEnemy.isElite) battleArea.classList.add('tower-enemy-elite');
+    }
     document.getElementById('tower-combat-log').innerHTML = '';
     const vfxLayer = document.getElementById('tower-hit-vfx');
     if (vfxLayer) vfxLayer.innerHTML = '';
@@ -273,6 +340,10 @@ const Tower = {
     if (dialogue) dialogue.classList.add('hidden');
     const resultOverlay = document.getElementById('tower-result-overlay');
     if (resultOverlay) { resultOverlay.classList.add('hidden'); resultOverlay.innerHTML = ''; }
+    const eventStrip = document.getElementById('tower-event-strip');
+    if (eventStrip) eventStrip.innerHTML = '';
+    const battleDiv2 = document.getElementById('tower-battle');
+    if (battleDiv2) battleDiv2.classList.remove('absolute-rhythm-active');
 
     const skillBtn = document.getElementById('tower-skill-btn');
     const parryBtn = document.getElementById('tower-parry-btn');
@@ -298,6 +369,11 @@ const Tower = {
     this.setIntent('적이 움직임을 읽고 있다. 리듬을 먼저 잡아라.');
     this.logLine('전투 시작! 리듬 타이밍을 맞춰 콤보를 쌓아라.', 'log-system');
     this.showCombatDialogue('start');
+    if (this.currentEnemy.isBoss) {
+      this.showEventStrip(`👑 ${towerData.currentFloor}층 BOSS — ${this.currentEnemy.name}`, 'event-boss', 3);
+    } else if (this.currentEnemy.isElite) {
+      this.showEventStrip(`⚔ 강화된 적 — ${this.currentEnemy.name}`, 'event-elite', 2.5);
+    }
   },
 
   // 탭 공격
@@ -359,7 +435,8 @@ const Tower = {
     const comboMult = this.getComboDamageMultiplier();
     const rhythmMult = rhythm.grade === 'perfect' ? 1.35 : rhythm.grade === 'good' ? 1.12 : 0.9;
     const weaknessMult = this.weaknessWindow ? 2.0 : 1.0;
-    const damage = Math.max(1, Math.floor(baseDmg * result.dmgMult * comboMult * rhythmMult * weaknessMult));
+    const absoluteMult = this.absoluteRhythm ? 2.0 : 1.0;
+    const damage = Math.max(1, Math.floor(baseDmg * result.dmgMult * comboMult * rhythmMult * weaknessMult * absoluteMult));
     this.currentEnemy.currentHp = Math.max(0, this.currentEnemy.currentHp - damage);
     this.totalDamageDealt += damage;
     if (this.weaknessWindow) {
@@ -580,10 +657,12 @@ const Tower = {
       this.logLine(`적이 ${pattern.name} 준비 중! 패링 불가!`, 'log-enemy');
       this.showBanner(`${pattern.name} — 패링 불가!`, 'banner-danger');
       this.setIntent(`⚠ ${pattern.name}! 패링 불가!`);
+      this.showEventStrip(`⚠ ${pattern.name}! 패링 불가!`, 'event-enemy', 2);
     } else {
       this.logLine(`적이 ${pattern.name} 준비 중! 타격 직전에 패링!`, 'log-enemy');
       this.showBanner(`${pattern.name}! 패링 준비!`, 'banner-parry');
       this.setIntent(`⚠ ${pattern.name} 예고! 지금 패링 타이밍을 잡아라.`);
+      this.showEventStrip(`⚔ ${pattern.name}! 패링 준비!`, 'event-enemy', 2);
     }
     this.showKeyMessage(pattern.name + '!', pattern.unparryable ? 'msg-danger' : 'msg-attack');
 
@@ -680,6 +759,7 @@ const Tower = {
     const { pattern } = strike;
     let enemyDmg = strike.damage;
     const parryGrade = strike.parryGrade || 'none';
+    const isChainStrike = strike.isChain || false;
 
     if (parryGrade === 'perfect') {
       const counter = this.computeParryCounterDamage(pattern, true);
@@ -687,6 +767,7 @@ const Tower = {
       this.comboCount = Math.min(TOWER_RHYTHM.maxCombo, this.comboCount + 1);
       this.gainFocus(18);
       this.logLine(`완벽 패링! 반격 성공 (${counter} 피해)`, 'log-critical');
+      this.showEventStrip(`✨ 완벽 패링! 반격 ${counter} 피해!`, 'event-parry-perfect', 2);
       this.spawnHitEffect('enemy', 'heavy');
       this.spawnDamageNumber('enemy', counter, { critical: true, heavy: true });
       this.playSfx('hitEnemyHeavy', 130);
@@ -694,10 +775,15 @@ const Tower = {
       this.updateEnemyPhase();
       this.updateBattleUI();
       if (this.currentEnemy.currentHp <= 0) {
+        this.chainActive = false;
         this.winFloor();
         return;
       }
-      this.queueEnemyIntent();
+      if (isChainStrike && this.chainActive) {
+        this.advanceChainAttack();
+      } else {
+        this.queueEnemyIntent();
+      }
       return;
     }
 
@@ -712,6 +798,7 @@ const Tower = {
       this.playSfx('hitEnemy', 70);
       this.updateEnemyPhase();
       if (this.currentEnemy.currentHp <= 0) {
+        this.chainActive = false;
         this.updateBattleUI();
         this.winFloor();
         return;
@@ -719,6 +806,10 @@ const Tower = {
     } else if (parryGrade === 'fail') {
       enemyDmg = Math.max(1, Math.floor(enemyDmg * TOWER_PARRY.failDamageRatio));
       this.logLine('패링 실패로 반격을 정통으로 맞았다!', 'log-enemy');
+      if (isChainStrike) this.chainAllParried = false;
+    } else {
+      // parryGrade === 'none'
+      if (isChainStrike) this.chainAllParried = false;
     }
 
     // 백호 실드 체크 (패링 없이 맞을 때만)
@@ -727,7 +818,11 @@ const Tower = {
       this.logLine('실드가 적의 공격을 막아냈다!', 'log-good');
       this.showRhythmFeedback('parryGood');
       this.updateBattleUI();
-      this.queueEnemyIntent();
+      if (isChainStrike && this.chainActive) {
+        this.advanceChainAttack();
+      } else {
+        this.queueEnemyIntent();
+      }
       return;
     }
 
@@ -765,11 +860,16 @@ const Tower = {
     }
 
     if (this.playerHp <= 0) {
+      this.chainActive = false;
       this.loseFloor();
       return;
     }
 
-    this.queueEnemyIntent();
+    if (isChainStrike && this.chainActive) {
+      this.advanceChainAttack();
+    } else {
+      this.queueEnemyIntent();
+    }
   },
 
   computeEnemyStrikeDamage(pattern, beast) {
@@ -813,16 +913,23 @@ const Tower = {
       focusBonus = 6;
       label = ' [리듬 완벽]';
       grade = 'perfect';
+      this.perfectStreak++;
+      // 5연속 PERFECT → "절대 리듬" (3초간 데미지 2배)
+      if (this.perfectStreak >= 5 && !this.absoluteRhythm) {
+        this.activateAbsoluteRhythm();
+      }
     } else if (cursorMs >= TOWER_RHYTHM.goodMin && cursorMs <= TOWER_RHYTHM.goodMax) {
       this.comboCount = Math.min(TOWER_RHYTHM.maxCombo, this.comboCount + 1);
       rollBonus = 1;
       focusBonus = 3;
       label = ' [리듬 유지]';
       grade = 'good';
+      this.perfectStreak = 0;
     } else {
-      this.comboCount = 1;
+      this.comboCount = Math.max(1, Math.floor(this.comboCount / 2));
       label = ' [호흡 붕괴]';
       grade = 'break';
+      this.perfectStreak = 0;
     }
 
     this.lastTapAt = now;
@@ -950,6 +1057,28 @@ const Tower = {
     return 1 + Math.max(0, this.comboCount - 1) * 0.08;
   },
 
+  // 절대 리듬 모드 활성화 (5연속 PERFECT)
+  activateAbsoluteRhythm() {
+    this.absoluteRhythm = true;
+    this.logLine('절대 리듬! 3초간 데미지 2배!', 'log-critical');
+    this.showBanner('절대 리듬 발동!', 'banner-critical');
+    this.showKeyMessage('절대 리듬!!!', 'msg-skill');
+    this.showEventStrip('🎵 절대 리듬! 3초간 데미지 2배!', 'event-absolute-rhythm', 3.5);
+    const battle = document.getElementById('tower-battle');
+    if (battle) battle.classList.add('absolute-rhythm-active');
+    this.playSfx('reward');
+
+    if (this._absoluteRhythmTimer) clearTimeout(this._absoluteRhythmTimer);
+    this._absoluteRhythmTimer = setTimeout(() => {
+      this.absoluteRhythm = false;
+      this.perfectStreak = 0;
+      this._absoluteRhythmTimer = null;
+      const b = document.getElementById('tower-battle');
+      if (b) b.classList.remove('absolute-rhythm-active');
+      if (this.inBattle) this.logLine('절대 리듬이 끝났다.', 'log-miss');
+    }, 3000);
+  },
+
   gainFocus(amount) {
     const prev = this.focusGauge;
     this.focusGauge = Math.min(100, this.focusGauge + amount);
@@ -969,6 +1098,16 @@ const Tower = {
       delete this.activeDebuffs.taunt;
       this.updateDebuffUI();
       return { name: '강공', multiplier: 1.35, hits: 1, hitText: '도발에 의한 강력한 일격!', heavy: true };
+    }
+
+    // 연계 패턴 확률 체크 (20%)
+    if (!this.chainActive && this.currentEnemy && this.currentEnemy.name && typeof CHAIN_ATTACK_DATA !== 'undefined') {
+      const baseName = this.currentEnemy.name.replace(/\s*Lv\.\d+$/, '').replace(/^\S+\s/, '').replace(/\s*\[BOSS\]$/, '');
+      const chainData = CHAIN_ATTACK_DATA[baseName];
+      if (chainData && Math.random() < 0.20 && this.enemyPhase >= 1) {
+        this.startChainAttack(chainData);
+        return this.getChainPattern(chainData.chain[0]);
+      }
     }
 
     const pool = [
@@ -997,6 +1136,94 @@ const Tower = {
     return pool[Math.floor(Math.random() * pool.length)];
   },
 
+  // 연계 패턴 시작
+  startChainAttack(chainData) {
+    this.chainActive = true;
+    this.chainQueue = chainData.chain.slice();
+    this.chainIndex = 0;
+    this.chainAllParried = true;
+    this.logLine(`${chainData.chainText}`, 'log-enemy');
+    this.showBanner(chainData.chainText, 'banner-danger');
+    this.showEventStrip(`⚔ ${chainData.chainText} (${chainData.chain.length}연속!)`, 'event-chain', 3);
+  },
+
+  // 연계 패턴에서 이름으로 패턴 찾기
+  getChainPattern(attackName) {
+    if (this.currentEnemy && this.currentEnemy.name && typeof ENEMY_PATTERNS !== 'undefined') {
+      const baseName = this.currentEnemy.name.replace(/\s*Lv\.\d+$/, '').replace(/^\S+\s/, '').replace(/\s*\[BOSS\]$/, '');
+      const enemyData = ENEMY_PATTERNS[baseName];
+      if (enemyData && enemyData.unique) {
+        const found = enemyData.unique.find(p => p.name === attackName);
+        if (found) return found;
+      }
+    }
+    const basicPatterns = {
+      '견제': { name: '견제', multiplier: 0.85, hits: 1, hitText: '상대를 흔들며 틈을 만들었다.', heavy: false },
+      '강공': { name: '강공', multiplier: 1.35, hits: 1, hitText: '무거운 일격을 꽂아 넣었다!', heavy: true }
+    };
+    return basicPatterns[attackName] || { name: attackName, multiplier: 1.0, hits: 1, hitText: `${attackName}!`, heavy: false };
+  },
+
+  // 연계 패턴 다음 단계 진행
+  advanceChainAttack() {
+    this.chainIndex++;
+    if (this.chainIndex >= this.chainQueue.length) {
+      this.chainActive = false;
+      if (this.chainAllParried) {
+        this.comboCount = Math.min(TOWER_RHYTHM.maxCombo, this.comboCount + 3);
+        this.comboPeak = Math.max(this.comboPeak, this.comboCount);
+        this.gainFocus(50);
+        this.logLine('연계 공격 완벽 방어! 콤보 +3, 집중 대폭 상승!', 'log-critical');
+        this.showBanner('연계 방어 성공!', 'banner-critical');
+        this.showEventStrip('✨ 연계 방어 완벽! 콤보+3 집중+50!', 'event-parry-perfect', 2.5);
+      } else {
+        this.logLine('연계 공격이 끝났다.', 'log-miss');
+      }
+      this.updateBattleUI();
+      return;
+    }
+    const nextName = this.chainQueue[this.chainIndex];
+    this.showEventStrip(`⚔ 연계 ${this.chainIndex + 1}/${this.chainQueue.length} — ${nextName}!`, 'event-chain', 1.5);
+    setTimeout(() => {
+      if (!this.inBattle || !this.currentEnemy || this.currentEnemy.currentHp <= 0) {
+        this.chainActive = false;
+        return;
+      }
+      this.beginChainWindup(this.getChainPattern(nextName));
+    }, 400);
+  },
+
+  // 연계 패턴의 개별 공격 윈드업
+  beginChainWindup(pattern) {
+    if (!this.inBattle || !this.currentEnemy || this.currentEnemy.currentHp <= 0) return;
+    if (this.pendingEnemyStrike) return;
+
+    const beast = GameState.beasts[this.selectedBeast];
+    const enemyDmg = this.computeEnemyStrikeDamage(pattern, beast);
+    const windup = 450 + (pattern.heavy ? 80 : 0);
+    const resolveAt = Date.now() + windup;
+
+    this.pendingEnemyStrike = { pattern, damage: enemyDmg, resolveAt, parryGrade: 'none', parryTried: false, isChain: true };
+
+    if (pattern.unparryable) {
+      this.pendingEnemyStrike.parryTried = true;
+      this.logLine(`연계: ${pattern.name}! 패링 불가!`, 'log-enemy');
+      this.showBanner(`연계: ${pattern.name} — 패링 불가!`, 'banner-danger');
+    } else {
+      this.logLine(`연계: ${pattern.name}! 패링하라!`, 'log-enemy');
+      this.showBanner(`연계: ${pattern.name}! 패링!`, 'banner-parry');
+    }
+    this.setIntent(`⚔ 연계 ${this.chainIndex + 1}/${this.chainQueue.length} — ${pattern.name}!`);
+    this.showKeyMessage(`연계: ${pattern.name}!`, 'msg-attack');
+    this.showRhythmFeedback('parryWarning');
+    this.updateBattleUI();
+
+    this.enemyTurnTimer = setTimeout(() => {
+      this.enemyTurnTimer = null;
+      this.resolveEnemyStrike();
+    }, windup);
+  },
+
   updateEnemyPhase() {
     if (!this.currentEnemy || !this.currentEnemy.hp) return;
     const ratio = this.currentEnemy.currentHp / this.currentEnemy.hp;
@@ -1007,6 +1234,7 @@ const Tower = {
       if (next === 1) {
         this.logLine('적의 기세가 상승했다! 반격 주의!', 'log-enemy');
         this.showBanner('페이즈 2 — 적이 강해진다!', 'banner-danger');
+        this.showEventStrip('⚠ 페이즈 2 — 적이 분노했다!', 'event-phase', 3.5);
         // 페이즈 1 기믹: 약점 노출
         if (!this._phaseGimmickUsed[1]) {
           this._phaseGimmickUsed[1] = true;
@@ -1015,6 +1243,7 @@ const Tower = {
       } else if (next === 2) {
         this.logLine('적이 광폭 상태에 돌입했다!', 'log-enemy');
         this.showBanner('페이즈 3 — 광폭!', 'banner-danger');
+        this.showEventStrip('🔥 페이즈 3 — 광폭 상태!', 'event-phase', 3.5);
         // 페이즈 2 기믹: 필살기 예고
         if (!this._phaseGimmickUsed[2]) {
           this._phaseGimmickUsed[2] = true;
@@ -1257,6 +1486,7 @@ const Tower = {
       this.activeDebuffs[type] = now + def.duration;
       this.logLine(`${def.icon} ${def.name}! ${def.desc} (${(def.duration/1000).toFixed(1)}초)`, 'log-enemy');
       this.showBanner(`${def.icon} ${def.name} 발동!`, 'banner-debuff');
+      this.showEventStrip(`${def.icon} ${def.name} — ${def.desc}`, 'event-debuff', 2.5);
       const tid = setTimeout(() => {
         if (this.activeDebuffs[type] && Date.now() >= this.activeDebuffs[type]) {
           delete this.activeDebuffs[type];
@@ -1297,6 +1527,7 @@ const Tower = {
     this.logLine('적이 빈틈을 보인다! 지금 공격하면 2배 피해!', 'log-good');
     this.showBanner('약점 노출! 지금 공격!', 'banner-weakness');
     this.setIntent('⚡ 적의 빈틈! 빠르게 공격하라!');
+    this.showEventStrip('💥 약점 노출! 공격 시 2배 피해!', 'event-weakness', 3);
     this._weaknessTimer = setTimeout(() => {
       this.weaknessWindow = false;
       this._weaknessTimer = null;
@@ -1314,6 +1545,7 @@ const Tower = {
     this.logLine(`적이 필살기를 준비한다! ${requiredCombo}콤보 이상으로 캔슬하라!`, 'log-enemy');
     this.showBanner(`필살기 예고! ${requiredCombo}콤보로 캔슬!`, 'banner-danger');
     this.setIntent(`⚠ 필살기 준비 중! ${requiredCombo}콤보 이상 쌓아 캔슬!`);
+    this.showEventStrip(`🔥 필살기 예고! ${requiredCombo}콤보로 캔슬!`, 'event-gimmick', 3.5);
 
     // 3초 후 판정
     const gimmickTimer = setTimeout(() => {
@@ -1434,6 +1666,27 @@ const Tower = {
     setTimeout(() => msg.remove(), 1600);
   },
 
+  // 전투 이벤트 스트립 — 리듬/패링 중에도 항상 보이는 상단 알림 (UX 개선)
+  showEventStrip(text, cls, durationSec) {
+    const strip = document.getElementById('tower-event-strip');
+    if (!strip) return;
+    const dur = durationSec || 2.5;
+    const item = document.createElement('div');
+    item.className = `event-item ${cls || ''}`;
+    item.textContent = text;
+    item.style.setProperty('--event-duration', dur + 's');
+    while (strip.children.length >= 3) strip.removeChild(strip.firstChild);
+    strip.appendChild(item);
+    setTimeout(() => { if (item.parentNode) item.remove(); }, (dur + 0.5) * 1000);
+  },
+
+  // 패시브 스킬 미니 컷씬 (Combat의 메서드 위임)
+  showPassiveSkillEffect(skill, beastId) {
+    if (typeof Combat !== 'undefined' && Combat.showPassiveSkillEffect) {
+      Combat.showPassiveSkillEffect(skill, beastId, 'tower');
+    }
+  },
+
   // 확률 기반 패시브 스킬 트리거 (탭 공격 시 확률 발동)
   checkPassiveSkillTrigger() {
     if (!this.inBattle || !this.currentEnemy) return;
@@ -1472,6 +1725,8 @@ const Tower = {
 
     this.showKeyMessage(skill.name + '!', 'msg-skill');
     this.playSfx('hitEnemyHeavy', 120);
+    this.showPassiveSkillEffect(skill, beastId);
+    this.showEventStrip(`${BEAST_SKILL_VFX[beastId]?.icon || '⚡'} ${skill.name}!`, 'event-passive', 2);
   },
 
   clearBattleTimers() {
@@ -1492,6 +1747,15 @@ const Tower = {
     this.stopRhythmMeter();
     this.clearFeedbackTimer();
     this.clearBattleTimers();
+    this.absoluteRhythm = false;
+    this.chainActive = false;
+    this.chainQueue = [];
+    this.chainIndex = 0;
+    if (this._absoluteRhythmTimer) { clearTimeout(this._absoluteRhythmTimer); this._absoluteRhythmTimer = null; }
+    const bArea = document.getElementById('tower-battle');
+    if (bArea) bArea.classList.remove('absolute-rhythm-active', 'tower-enemy-elite', 'tower-enemy-boss');
+    const evtStrip = document.getElementById('tower-event-strip');
+    if (evtStrip) evtStrip.innerHTML = '';
     this.inBattle = false;
     const vfxLayer = document.getElementById('tower-hit-vfx');
     if (vfxLayer) vfxLayer.innerHTML = '';
@@ -1545,6 +1809,15 @@ const Tower = {
     this.stopRhythmMeter();
     this.clearFeedbackTimer();
     this.clearBattleTimers();
+    this.absoluteRhythm = false;
+    this.chainActive = false;
+    this.chainQueue = [];
+    this.chainIndex = 0;
+    if (this._absoluteRhythmTimer) { clearTimeout(this._absoluteRhythmTimer); this._absoluteRhythmTimer = null; }
+    const bArea2 = document.getElementById('tower-battle');
+    if (bArea2) bArea2.classList.remove('absolute-rhythm-active', 'tower-enemy-elite', 'tower-enemy-boss');
+    const evtStrip2 = document.getElementById('tower-event-strip');
+    if (evtStrip2) evtStrip2.innerHTML = '';
     this.inBattle = false;
     const vfxLayer = document.getElementById('tower-hit-vfx');
     if (vfxLayer) vfxLayer.innerHTML = '';

@@ -92,6 +92,11 @@ const Combat = {
   totalDamageDealt: 0,
   totalDamageTaken: 0,
   skillUsedCount: 0,
+  // 연계 패턴 시스템
+  chainQueue: [],          // 연계 공격 큐
+  chainIndex: 0,           // 현재 연계 인덱스
+  chainActive: false,      // 연계 진행 중 여부
+  chainAllParried: true,   // 모든 연계 패링 성공 여부
 
   playSfx(type, throttledMs = 0) {
     if (typeof StoryAudio === 'undefined' || !StoryAudio) return;
@@ -147,6 +152,10 @@ const Combat = {
     this.totalDamageDealt = 0;
     this.totalDamageTaken = 0;
     this.skillUsedCount = 0;
+    this.chainQueue = [];
+    this.chainIndex = 0;
+    this.chainActive = false;
+    this.chainAllParried = true;
     this.clearFeedbackTimer();
     this.clearComboTimer();
     if (this.enemyTurnTimer) {
@@ -179,10 +188,13 @@ const Combat = {
     if (banner) { banner.textContent = ''; banner.className = 'combat-banner'; }
     const debuffBar = document.getElementById('combat-debuff-bar');
     if (debuffBar) debuffBar.innerHTML = '';
+    const eventStrip = document.getElementById('combat-event-strip');
+    if (eventStrip) eventStrip.innerHTML = '';
 
     this.updateEnemyStatus();
     this.updatePlayerStatus();
     this.updateCombatStateUI();
+    this.updateContextBar();
     this.showCombatDialogue('start');
     this.queueEnemyIntent();
     this.logLine('전투 시작! 빠르게 공격해 콤보를 쌓고, 적 예고 시 패링하라!', 'log-system');
@@ -250,6 +262,7 @@ const Combat = {
     this.applyImpact(tierKey);
     this.updateEnemyStatus();
     this.updateCombatStateUI();
+    this.updateContextBar();
     this.updateEnemyPhase();
 
     // 패시브 스킬 트리거 (콤보 3 이상 시 확률적 발동)
@@ -450,11 +463,13 @@ const Combat = {
       this.showBanner(`${pattern.name} — 패링 불가!`, 'banner-danger');
       this.setIntent(`⚠ ${pattern.name}! 패링 불가!`);
       this.showKeyMessage(pattern.name + '!', 'msg-attack');
+      this.showEventStrip(`⚠ ${pattern.name}! 패링 불가!`, 'event-enemy', 2);
     } else {
       this.logLine(`${urgency}${pattern.name}! 패링하라!`, 'log-enemy');
       this.showBanner(`${pattern.name}! 패링 준비!`, 'banner-parry');
       this.setIntent(`${pattern.name}! [패링] 준비!`);
       this.showKeyMessage(pattern.name + '!', 'msg-attack');
+      this.showEventStrip(`⚔ ${pattern.name}! 패링 준비!`, 'event-enemy', 2);
 
       // 패링 카운트다운 링
       const ringParent = document.getElementById('story-text-area');
@@ -478,6 +493,7 @@ const Combat = {
 
     this.showFeedback('parryWarning');
     this.updateCombatStateUI();
+    this.updateContextBar();
 
     this.enemyTurnTimer = setTimeout(() => {
       this.enemyTurnTimer = null;
@@ -558,6 +574,8 @@ const Combat = {
     let enemyDmg = strike.damage;
     const parryGrade = strike.parryGrade || 'none';
 
+    const isChainStrike = strike.isChain || false;
+
     if (parryGrade === 'perfect') {
       const counter = this.computeParryCounterDamage(pattern, true);
       this.enemy.currentHp = Math.max(0, this.enemy.currentHp - counter);
@@ -566,6 +584,7 @@ const Combat = {
       this.gainMomentum(32);
       this.resetComboTimer();
       this.logLine(`완벽 패링! 반격 적중 (${counter} 피해)`, 'log-critical');
+      this.showEventStrip(`✨ 완벽 패링! 반격 ${counter} 피해!`, 'event-parry-perfect', 2);
       this.spawnHitEffect('enemy', 'heavy');
       this.spawnDamageNumber('enemy', counter, { critical: true, heavy: true });
       this.playSfx('hitEnemyHeavy', 130);
@@ -573,12 +592,18 @@ const Combat = {
       this.updateEnemyStatus();
       this.updateEnemyPhase();
       this.updateCombatStateUI();
+      this.updateContextBar();
       if (this.enemy.currentHp <= 0) {
+        this.chainActive = false;
         this.logLine(`${this.enemy.name}이(가) 쓰러졌다!`, 'log-critical');
         setTimeout(() => this.end(true), 750);
         return;
       }
-      this.queueEnemyIntent();
+      if (isChainStrike && this.chainActive) {
+        this.advanceChainAttack();
+      } else {
+        this.queueEnemyIntent();
+      }
       return;
     }
 
@@ -594,6 +619,7 @@ const Combat = {
       this.updateEnemyStatus();
       this.updateEnemyPhase();
       if (this.enemy.currentHp <= 0) {
+        this.chainActive = false;
         this.updateCombatStateUI();
         this.logLine(`${this.enemy.name}이(가) 쓰러졌다!`, 'log-critical');
         setTimeout(() => this.end(true), 750);
@@ -604,6 +630,10 @@ const Combat = {
       // 패링 실패 시 콤보 완전 초기화
       this.comboCount = 0;
       this.clearComboTimer();
+      if (isChainStrike) this.chainAllParried = false;
+    } else {
+      // parryGrade === 'none'
+      if (isChainStrike) this.chainAllParried = false;
     }
 
     // 백호 실드 체크 (패링 없이 맞을 때만)
@@ -612,7 +642,12 @@ const Combat = {
       this.logLine('실드가 적의 공격을 막아냈다!', 'log-good');
       this.showFeedback('shield');
       this.updateCombatStateUI();
-      this.queueEnemyIntent();
+      this.updateContextBar();
+      if (isChainStrike && this.chainActive) {
+        this.advanceChainAttack();
+      } else {
+        this.queueEnemyIntent();
+      }
       return;
     }
 
@@ -649,6 +684,7 @@ const Combat = {
     this.applyImpact(pattern.heavy ? 'enemyHeavy' : 'enemy');
     this.updatePlayerStatus();
     this.updateCombatStateUI();
+    this.updateContextBar();
 
     // HP 위기 대사
     if (this.playerHp <= this.playerMaxHp * 0.3 && !this._crisisDialogueShown) {
@@ -657,6 +693,7 @@ const Combat = {
     }
 
     if (this.playerHp <= 0) {
+      this.chainActive = false;
       this.logLine('더는 버틸 수 없다...', 'log-enemy');
       this.playDefeatCue();
       this.applyImpact('enemyHeavy');
@@ -664,7 +701,11 @@ const Combat = {
       return;
     }
 
-    this.queueEnemyIntent();
+    if (isChainStrike && this.chainActive) {
+      this.advanceChainAttack();
+    } else {
+      this.queueEnemyIntent();
+    }
   },
 
   computeEnemyStrikeDamage(pattern, beast) {
@@ -743,8 +784,10 @@ const Combat = {
       this.momentumReady = true;
       this.logLine('기세가 폭발한다! 스킬 사용 가능!', 'log-good');
       this.showCombatDialogue('skillReady');
+      this.showEventStrip('⚡ 기세 MAX! 스킬 사용 가능!', 'event-skill-ready', 2);
     }
     this.updateCombatStateUI();
+    this.updateContextBar();
   },
 
   // 신수 전투 대사 표시
@@ -889,6 +932,17 @@ const Combat = {
       return { name: '강공', multiplier: 1.35, hits: 1, hitText: '도발에 의한 강력한 일격!', heavy: true };
     }
 
+    // 연계 패턴 확률 체크 (20%)
+    if (!this.chainActive && this.enemy && this.enemy.name && typeof CHAIN_ATTACK_DATA !== 'undefined') {
+      const baseName = this.enemy.name.replace(/\s*Lv\.\d+$/, '').replace(/^\S+\s/, '').replace(/\s*\[BOSS\]$/, '');
+      const chainData = CHAIN_ATTACK_DATA[baseName];
+      if (chainData && Math.random() < 0.20 && this.enemyPhase >= 1) {
+        this.startChainAttack(chainData);
+        // 첫 번째 연계 패턴 반환
+        return this.getChainPattern(chainData.chain[0]);
+      }
+    }
+
     const pool = [
       { name: '견제', multiplier: 0.85, hits: 1, hitText: '상대를 흔들며 틈을 만들었다.', heavy: false },
       { name: '정타', multiplier: 1.0, hits: 1, hitText: '정면에서 강하게 밀어붙였다.', heavy: false }
@@ -913,6 +967,102 @@ const Combat = {
     }
 
     return pool[Math.floor(Math.random() * pool.length)];
+  },
+
+  // 연계 패턴 시작
+  startChainAttack(chainData) {
+    this.chainActive = true;
+    this.chainQueue = chainData.chain.slice();
+    this.chainIndex = 0;
+    this.chainAllParried = true;
+    this.logLine(`${chainData.chainText}`, 'log-enemy');
+    this.showBanner(chainData.chainText, 'banner-danger');
+    this.showEventStrip(`⚔ ${chainData.chainText} (${chainData.chain.length}연속!)`, 'event-chain', 3);
+  },
+
+  // 연계 패턴에서 이름으로 패턴 찾기
+  getChainPattern(attackName) {
+    // 적 고유 패턴에서 이름으로 검색
+    if (this.enemy && this.enemy.name && typeof ENEMY_PATTERNS !== 'undefined') {
+      const baseName = this.enemy.name.replace(/\s*Lv\.\d+$/, '').replace(/^\S+\s/, '').replace(/\s*\[BOSS\]$/, '');
+      const enemyData = ENEMY_PATTERNS[baseName];
+      if (enemyData && enemyData.unique) {
+        const found = enemyData.unique.find(p => p.name === attackName);
+        if (found) return found;
+      }
+    }
+    // 기본 패턴 풀에서 이름으로 검색
+    const basicPatterns = {
+      '견제': { name: '견제', multiplier: 0.85, hits: 1, hitText: '상대를 흔들며 틈을 만들었다.', heavy: false },
+      '강공': { name: '강공', multiplier: 1.35, hits: 1, hitText: '무거운 일격을 꽂아 넣었다!', heavy: true }
+    };
+    return basicPatterns[attackName] || { name: attackName, multiplier: 1.0, hits: 1, hitText: `${attackName}!`, heavy: false };
+  },
+
+  // 연계 패턴 다음 단계 진행
+  advanceChainAttack() {
+    this.chainIndex++;
+    if (this.chainIndex >= this.chainQueue.length) {
+      // 연계 완료
+      this.chainActive = false;
+      if (this.chainAllParried) {
+        // 모든 연계 패링 성공 보상
+        this.comboCount = Math.min(MAX_COMBO, this.comboCount + 3);
+        this.comboPeak = Math.max(this.comboPeak, this.comboCount);
+        this.gainMomentum(50);
+        this.logLine('연계 공격 완벽 방어! 콤보 +3, 기세 대폭 상승!', 'log-critical');
+        this.showBanner('연계 방어 성공!', 'banner-critical');
+        this.showEventStrip('✨ 연계 방어 완벽! 콤보+3 기세+50!', 'event-parry-perfect', 2.5);
+        this.addRewardScore(15);
+      } else {
+        this.logLine('연계 공격이 끝났다.', 'log-miss');
+      }
+      this.updateCombatStateUI();
+      this.updateContextBar();
+      return;
+    }
+    // 다음 연계 공격을 짧은 딜레이 후 발동
+    const nextName = this.chainQueue[this.chainIndex];
+    this.showEventStrip(`⚔ 연계 ${this.chainIndex + 1}/${this.chainQueue.length} — ${nextName}!`, 'event-chain', 1.5);
+    setTimeout(() => {
+      if (!this.active || !this.enemy || this.enemy.currentHp <= 0) {
+        this.chainActive = false;
+        return;
+      }
+      this.beginChainWindup(this.getChainPattern(nextName));
+    }, 400);
+  },
+
+  // 연계 패턴의 개별 공격 윈드업
+  beginChainWindup(pattern) {
+    if (!this.active || !this.enemy || this.enemy.currentHp <= 0) return;
+    if (this.pendingEnemyStrike) return;
+
+    const beast = GameState.beasts[this.beastId];
+    const enemyDmg = this.computeEnemyStrikeDamage(pattern, beast);
+    const windup = 450 + (pattern.heavy ? 80 : 0);
+    const resolveAt = Date.now() + windup;
+
+    this.pendingEnemyStrike = { pattern, damage: enemyDmg, resolveAt, parryGrade: 'none', parryTried: false, isChain: true };
+
+    if (pattern.unparryable) {
+      this.pendingEnemyStrike.parryTried = true;
+      this.logLine(`연계: ${pattern.name}! 패링 불가!`, 'log-enemy');
+      this.showBanner(`연계: ${pattern.name} — 패링 불가!`, 'banner-danger');
+    } else {
+      this.logLine(`연계: ${pattern.name}! 패링하라!`, 'log-enemy');
+      this.showBanner(`연계: ${pattern.name}! 패링!`, 'banner-parry');
+    }
+    this.setIntent(`⚔ 연계 ${this.chainIndex + 1}/${this.chainQueue.length} — ${pattern.name}!`);
+    this.showKeyMessage(`연계: ${pattern.name}!`, 'msg-attack');
+    this.showFeedback('parryWarning');
+    this.updateCombatStateUI();
+    this.updateContextBar();
+
+    this.enemyTurnTimer = setTimeout(() => {
+      this.enemyTurnTimer = null;
+      this.resolveEnemyStrike();
+    }, windup);
   },
 
   queueEnemyIntent() {
@@ -979,6 +1129,7 @@ const Combat = {
       if (next === 1) {
         this.logLine('적이 분노해 움직임이 빨라졌다!', 'log-enemy');
         this.showBanner('페이즈 2 — 적이 강해진다!', 'banner-danger');
+        this.showEventStrip('⚠ 페이즈 2 — 적이 분노했다!', 'event-phase', 3.5);
         // 페이즈 1 기믹: 약점 노출
         if (!this._phaseGimmickUsed[1]) {
           this._phaseGimmickUsed[1] = true;
@@ -987,6 +1138,7 @@ const Combat = {
       } else if (next === 2) {
         this.logLine('적이 광폭 상태에 돌입했다!', 'log-enemy');
         this.showBanner('페이즈 3 — 광폭!', 'banner-danger');
+        this.showEventStrip('🔥 페이즈 3 — 광폭 상태!', 'event-phase', 3.5);
         // 페이즈 2 기믹: 필살기 예고
         if (!this._phaseGimmickUsed[2]) {
           this._phaseGimmickUsed[2] = true;
@@ -1177,8 +1329,14 @@ const Combat = {
     if (!value) return;
 
     const isPlayerHit = target === 'player';
+    // 데미지 크기 스케일링
+    let sizeClass = 'dmg-small';
+    if (value >= 50) sizeClass = 'dmg-huge';
+    else if (value >= 30) sizeClass = 'dmg-large';
+    else if (value >= 15) sizeClass = 'dmg-medium';
+
     const dmg = document.createElement('div');
-    dmg.className = `hit-vfx-dmg ${isPlayerHit ? 'enemy' : 'ally'}${options.critical ? ' crit' : ''}${options.heavy ? ' heavy' : ''}`;
+    dmg.className = `hit-vfx-dmg ${isPlayerHit ? 'enemy' : 'ally'}${options.critical ? ' crit' : ''}${options.heavy ? ' heavy' : ''} ${sizeClass}`;
     dmg.textContent = `-${value}`;
     dmg.style.left = `${(isPlayerHit ? 64 : 36) + (Math.random() * 10 - 5)}%`;
     dmg.style.top = `${46 + (Math.random() * 10 - 5)}%`;
@@ -1209,6 +1367,21 @@ const Combat = {
     setTimeout(() => msg.remove(), 1600);
   },
 
+  // 전투 이벤트 스트립 — 리듬/패링 중에도 항상 보이는 상단 알림 (UX 개선)
+  showEventStrip(text, cls, durationSec) {
+    const strip = document.getElementById('combat-event-strip');
+    if (!strip) return;
+    const dur = durationSec || 2.5;
+    const item = document.createElement('div');
+    item.className = `event-item ${cls || ''}`;
+    item.textContent = text;
+    item.style.setProperty('--event-duration', dur + 's');
+    // 최대 3개 유지
+    while (strip.children.length >= 3) strip.removeChild(strip.firstChild);
+    strip.appendChild(item);
+    setTimeout(() => { if (item.parentNode) item.remove(); }, (dur + 0.5) * 1000);
+  },
+
   // 메시지 배너 (패링 타이밍 중에도 읽을 수 있는 큰 텍스트)
   showBanner(text, cls) {
     const banner = document.getElementById('combat-banner');
@@ -1236,6 +1409,7 @@ const Combat = {
       this.activeDebuffs[type] = now + def.duration;
       this.logLine(`${def.icon} ${def.name}! ${def.desc} (${(def.duration/1000).toFixed(1)}초)`, 'log-enemy');
       this.showBanner(`${def.icon} ${def.name} 발동!`, 'banner-debuff');
+      this.showEventStrip(`${def.icon} ${def.name} — ${def.desc}`, 'event-debuff', 2.5);
       const tid = setTimeout(() => {
         if (this.activeDebuffs[type] && Date.now() >= this.activeDebuffs[type]) {
           delete this.activeDebuffs[type];
@@ -1277,6 +1451,7 @@ const Combat = {
     this.showBanner('약점 노출! 지금 공격!', 'banner-weakness');
     this.setIntent('⚡ 적의 빈틈! 빠르게 공격하라!');
     this.showKeyMessage('약점 노출!', 'msg-weakness');
+    this.showEventStrip('💥 약점 노출! 공격 시 2배 피해!', 'event-weakness', 3);
     this._weaknessTimer = setTimeout(() => {
       this.weaknessWindow = false;
       this._weaknessTimer = null;
@@ -1295,6 +1470,7 @@ const Combat = {
     this.showBanner(`필살기 예고! ${requiredCombo}콤보로 캔슬!`, 'banner-danger');
     this.setIntent(`⚠ 필살기 준비 중! ${requiredCombo}콤보 이상 쌓아 캔슬!`);
     this.showKeyMessage('필살기 예고!', 'msg-danger');
+    this.showEventStrip(`🔥 필살기 예고! ${requiredCombo}콤보로 캔슬!`, 'event-gimmick', 3.5);
 
     // 3초 후 판정
     const gimmickTimer = setTimeout(() => {
@@ -1326,7 +1502,7 @@ const Combat = {
     this._debuffTimers.push(gimmickTimer);
   },
 
-  // 스킬 컷씬 연출 (공용 — 스토리 & 탑) — 강화 버전
+  // 스킬 컷씬 연출 (공용 — 스토리 & 탑) — 시네마틱 버전
   showSkillCutscene(beastId, mode) {
     const vfx = BEAST_SKILL_VFX[beastId];
     if (!vfx) return;
@@ -1339,35 +1515,92 @@ const Combat = {
     if (old) old.remove();
 
     const overlay = document.createElement('div');
-    overlay.className = 'skill-cutscene-overlay';
+    overlay.className = 'skill-cutscene-overlay enhanced cinematic';
     overlay.style.setProperty('--skill-color', vfx.color);
     overlay.style.setProperty('--skill-glow', vfx.glow);
 
-    // 배경 CG 이미지 (beast standing image)
+    // 시네마틱 레터박스 (상단/하단 블랙바)
+    const letterboxTop = document.createElement('div');
+    letterboxTop.className = 'skill-letterbox-top';
+    overlay.appendChild(letterboxTop);
+    const letterboxBottom = document.createElement('div');
+    letterboxBottom.className = 'skill-letterbox-bottom';
+    overlay.appendChild(letterboxBottom);
+
+    // 스피드 라인 배경
+    const speedLines = document.createElement('div');
+    speedLines.className = 'skill-speed-lines';
+    overlay.appendChild(speedLines);
+
+    // 오라 이펙트
+    const aura = document.createElement('div');
+    aura.className = 'skill-cutscene-aura';
+    overlay.appendChild(aura);
+
+    // 에너지 링
+    const ring = document.createElement('div');
+    ring.className = 'skill-cutscene-ring';
+    overlay.appendChild(ring);
+
+    // 배경 CG 이미지 (드라마틱 줌)
     const cgPath = getCGStandingPath(beastId);
     if (cgPath) {
       const img = document.createElement('img');
-      img.className = 'skill-cutscene-cg';
+      img.className = 'skill-cutscene-cg cinematic-zoom';
       img.src = cgPath;
       img.alt = '';
       img.draggable = false;
       overlay.appendChild(img);
     }
 
-    // 스킬 이름 텍스트
+    // 스킬 이름 텍스트 (붓 터치 효과)
     const nameEl = document.createElement('div');
-    nameEl.className = 'skill-cutscene-name';
+    nameEl.className = 'skill-cutscene-name brush-stroke';
     nameEl.textContent = vfx.name;
     overlay.appendChild(nameEl);
 
-    // 슬래시 이펙트 (더 많이)
-    for (let i = 0; i < 6; i++) {
+    // 서브 설명 (신수별 스킬 타입)
+    const descs = {
+      cheongryong: '폭풍을 가르는 연격',
+      baekho: '불굴의 일격과 수호',
+      jujak: '불꽃이 모든 것을 태운다',
+      hyeonmu: '대지의 방패와 반격',
+      hwangryong: '천지를 뒤흔드는 힘'
+    };
+    const subDesc = document.createElement('div');
+    subDesc.className = 'skill-cutscene-subdesc';
+    subDesc.textContent = descs[beastId] || '';
+    overlay.appendChild(subDesc);
+
+    // 슬래시 이펙트 (더 많이, 더 강하게)
+    for (let i = 0; i < 8; i++) {
       const slash = document.createElement('div');
       slash.className = 'skill-cutscene-slash';
       slash.style.setProperty('--slash-i', i);
-      slash.style.top = `${20 + i * 12}%`;
+      slash.style.top = `${12 + i * 10}%`;
       slash.style.filter = vfx.slashColor;
       overlay.appendChild(slash);
+    }
+
+    // 속성 이모지 이펙트 (신수별)
+    const elementEmojis = {
+      cheongryong: ['🌊', '💨', '🐉', '⚡'],
+      baekho: ['⚡', '🌟', '🐅', '💫'],
+      jujak: ['🔥', '🔥', '🔥', '💥'],
+      hyeonmu: ['🌿', '🛡️', '🐢', '💎'],
+      hwangryong: ['⚡', '✨', '🌟', '💫']
+    };
+    const emojis = elementEmojis[beastId] || elementEmojis.cheongryong;
+    for (let i = 0; i < 8; i++) {
+      const el = document.createElement('div');
+      el.className = 'skill-cutscene-element';
+      el.textContent = emojis[i % emojis.length];
+      el.style.setProperty('--el-i', i);
+      el.style.left = `${15 + Math.random() * 70}%`;
+      el.style.top = `${15 + Math.random() * 70}%`;
+      el.style.setProperty('--el-dx', `${(Math.random() - 0.5) * 80}px`);
+      el.style.setProperty('--el-dy', `${-20 - Math.random() * 60}px`);
+      overlay.appendChild(el);
     }
 
     // 에너지 파티클 스타일 주입 (최초 1회)
@@ -1395,8 +1628,8 @@ const Combat = {
       document.head.appendChild(style);
     }
 
-    // 에너지 파티클
-    for (let i = 0; i < 12; i++) {
+    // 에너지 파티클 (더 많이)
+    for (let i = 0; i < 18; i++) {
       const particle = document.createElement('div');
       particle.className = 'skill-cutscene-particle';
       particle.style.setProperty('--p-i', i);
@@ -1406,22 +1639,48 @@ const Combat = {
       overlay.appendChild(particle);
     }
 
-    // 플래시
+    // 화이트 플래시 (스크린 프리즈 효과)
     const flash = document.createElement('div');
-    flash.className = 'skill-cutscene-flash';
+    flash.className = 'skill-cutscene-flash freeze-flash';
     overlay.appendChild(flash);
 
     parent.appendChild(overlay);
 
-    // 키 메시지 표시
-    this.showKeyMessage(vfx.name + '!!!', 'msg-skill');
+    // 프리즈 프레임: 300ms 동안 리듬미터/적 타이머 일시정지 효과 (시각적)
+    parent.classList.add('skill-freeze-frame');
+    setTimeout(() => parent.classList.remove('skill-freeze-frame'), 300);
 
-    // 컷씬 후 화면 흔들림 연출
+    // 이벤트 스트립에도 표시
+    const stripId = mode === 'tower' ? 'tower-event-strip' : 'combat-event-strip';
+    const stripEl = document.getElementById(stripId);
+    if (stripEl) {
+      const item = document.createElement('div');
+      item.className = 'event-item event-skill';
+      item.textContent = `${vfx.icon} ${vfx.name}!!!`;
+      item.style.setProperty('--event-duration', '2s');
+      while (stripEl.children.length >= 3) stripEl.removeChild(stripEl.firstChild);
+      stripEl.appendChild(item);
+      setTimeout(() => { if (item.parentNode) item.remove(); }, 2500);
+    }
+
+    // 키 메시지 표시
+    if (mode === 'tower') {
+      Tower.showKeyMessage(vfx.name + '!!!', 'msg-skill');
+    } else {
+      this.showKeyMessage(vfx.name + '!!!', 'msg-skill');
+    }
+
+    // 컷씬 후 화면 흔들림 연출 (더 강하게)
     setTimeout(() => {
-      this.applyImpact('critical');
+      if (mode === 'tower') { Tower.applyBattleImpact('critical'); }
+      else { this.applyImpact('critical'); }
+    }, 700);
+    setTimeout(() => {
+      if (mode === 'tower') { Tower.applyBattleImpact('critical'); }
+      else { this.applyImpact('critical'); }
     }, 900);
 
-    setTimeout(() => overlay.remove(), 1200);
+    setTimeout(() => overlay.remove(), 1600);
   },
 
   // 패시브 스킬 트리거 (콤보 3 이상 시 확률적 발동)
@@ -1462,6 +1721,56 @@ const Combat = {
 
     this.showKeyMessage(skill.name + '!', 'msg-skill');
     this.playSfx('hitEnemyHeavy', 120);
+    this.showPassiveSkillEffect(skill, this.beastId, 'story');
+    this.showEventStrip(`${BEAST_SKILL_VFX[this.beastId]?.icon || '⚡'} ${skill.name}!`, 'event-passive', 2);
+  },
+
+  // 패시브 스킬 미니 컷씬 (공용) — 초상화 플래시 포함
+  showPassiveSkillEffect(skill, beastId, mode) {
+    const parentId = mode === 'tower' ? 'tower-battle' : 'story-text-area';
+    const parent = document.getElementById(parentId);
+    if (!parent) return;
+
+    const vfx = BEAST_SKILL_VFX[beastId];
+    const color = (vfx && vfx.color) || skill.color || '#ffd166';
+    const glow = (vfx && vfx.glow) || 'rgba(255,209,102,0.4)';
+
+    const flash = document.createElement('div');
+    flash.className = 'passive-skill-flash';
+    flash.style.setProperty('--passive-color', color);
+    flash.style.setProperty('--passive-glow', glow);
+
+    // 신수 초상화 플래시 (200ms 간 포트레이트 표시)
+    const portraitPath = getBeastPortraitPath(beastId);
+    if (portraitPath) {
+      const portrait = document.createElement('img');
+      portrait.className = 'passive-skill-portrait';
+      portrait.src = portraitPath;
+      portrait.alt = '';
+      portrait.draggable = false;
+      flash.appendChild(portrait);
+    }
+
+    // 아이콘
+    const iconEl = document.createElement('div');
+    iconEl.className = 'passive-skill-icon';
+    iconEl.textContent = (vfx && vfx.icon) || '⚡';
+    flash.appendChild(iconEl);
+
+    // 이름
+    const nameEl = document.createElement('div');
+    nameEl.className = 'passive-skill-name';
+    nameEl.textContent = skill.name;
+    flash.appendChild(nameEl);
+
+    // 에너지 링
+    const ring = document.createElement('div');
+    ring.className = 'passive-skill-ring';
+    ring.style.borderColor = color;
+    flash.appendChild(ring);
+
+    parent.appendChild(flash);
+    setTimeout(() => flash.remove(), 700);
   },
 
   // 전투 결과 계산
@@ -1517,6 +1826,52 @@ const Combat = {
       container.classList.add('hidden');
       container.innerHTML = '';
     }
+  },
+
+  // 전투 상황 컨텍스트 바 업데이트 (UX: 리듬/패링 중에도 읽을 수 있는 1줄 요약)
+  updateContextBar() {
+    const bar = document.getElementById('combat-context-bar');
+    if (!bar) return;
+    if (!this.active || !this.enemy) {
+      bar.textContent = '';
+      bar.className = 'combat-context-bar';
+      return;
+    }
+
+    const hpRatio = this.enemy.currentHp / this.enemy.hp;
+    let hpState = '멀쩡함';
+    if (hpRatio <= 0) hpState = '쓰러짐';
+    else if (hpRatio <= 0.25) hpState = '거의 쓰러질 것 같음';
+    else if (hpRatio <= 0.5) hpState = '많이 지쳐보임';
+    else if (hpRatio <= 0.75) hpState = '약간 지쳐보임';
+
+    let contextText = '';
+    let contextClass = 'combat-context-bar';
+
+    if (this.pendingEnemyStrike) {
+      const pname = this.pendingEnemyStrike.pattern?.name || '공격';
+      const isChain = this.chainActive ? ` (연계 ${this.chainIndex + 1}/${this.chainQueue.length})` : '';
+      if (this.pendingEnemyStrike.pattern?.unparryable) {
+        contextText = `⚠ ${pname}! 패링 불가!${isChain}`;
+        contextClass += ' ctx-danger';
+      } else {
+        contextText = `⚔ ${pname}! 패링 준비!${isChain}`;
+        contextClass += ' ctx-parry';
+      }
+    } else if (this.weaknessWindow) {
+      contextText = '💥 약점 노출! 지금 공격!';
+      contextClass += ' ctx-weakness';
+    } else if (this.momentumReady) {
+      contextText = `⚡ 기세 MAX! 스킬 사용 가능! · ${this.comboCount}콤보 · 적: ${hpState}`;
+      contextClass += ' ctx-skill-ready';
+    } else {
+      const comboText = this.comboCount > 0 ? `${this.comboCount}콤보` : '콤보 0';
+      contextText = `${comboText} · 기세 ${Math.floor(this.momentumGauge)}% · 적: ${hpState}`;
+      contextClass += ' ctx-idle';
+    }
+
+    bar.textContent = contextText;
+    bar.className = contextClass;
   },
 
   // 전투 종료
@@ -1577,6 +1932,12 @@ const Combat = {
     if (banner) banner.className = 'combat-banner';
     const debuffBar = document.getElementById('combat-debuff-bar');
     if (debuffBar) debuffBar.innerHTML = '';
+    const eventStrip = document.getElementById('combat-event-strip');
+    if (eventStrip) eventStrip.innerHTML = '';
+    const contextBar = document.getElementById('combat-context-bar');
+    if (contextBar) { contextBar.textContent = ''; contextBar.className = 'combat-context-bar'; }
+    this.chainActive = false;
+    this.chainQueue = [];
     const expr = document.getElementById('story-char-expression');
     if (expr) { expr.className = ''; expr.textContent = ''; }
     if (typeof StoryAudio !== 'undefined' && StoryAudio && typeof StoryAudio.startAmbient === 'function') {

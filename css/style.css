@@ -4381,3 +4381,494 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
 
+/* ===== 전투 이벤트 스트립 (UX 개선: 리듬/패링 중 가독성) ===== */
+.combat-event-strip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 38;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+  padding: 6px 8px 0;
+  gap: 3px;
+}
+
+.combat-event-strip .event-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: white;
+  animation: eventSlideIn 0.25s ease-out, eventFadeOut 0.4s ease-in var(--event-duration, 2.5s) forwards;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+}
+
+.event-item.event-skill {
+  background: linear-gradient(135deg, rgba(255,209,102,0.25), rgba(0,0,0,0.7));
+  border-color: rgba(255,209,102,0.4);
+  color: #ffd166;
+  font-size: 15px;
+  padding: 6px 20px;
+}
+
+.event-item.event-parry-perfect {
+  background: linear-gradient(135deg, rgba(200,240,255,0.2), rgba(0,0,0,0.7));
+  border-color: rgba(200,240,255,0.4);
+  color: #c8f0ff;
+}
+
+.event-item.event-parry-good {
+  background: linear-gradient(135deg, rgba(142,214,255,0.15), rgba(0,0,0,0.7));
+  border-color: rgba(142,214,255,0.3);
+  color: #8ed6ff;
+}
+
+.event-item.event-parry-fail {
+  background: linear-gradient(135deg, rgba(255,107,107,0.2), rgba(0,0,0,0.7));
+  border-color: rgba(255,107,107,0.35);
+  color: #ff8f8f;
+}
+
+.event-item.event-enemy {
+  background: linear-gradient(135deg, rgba(255,107,107,0.15), rgba(0,0,0,0.7));
+  border-color: rgba(255,107,107,0.3);
+  color: #ff9a9a;
+}
+
+.event-item.event-phase {
+  background: linear-gradient(135deg, rgba(255,70,70,0.25), rgba(0,0,0,0.75));
+  border-color: rgba(255,70,70,0.5);
+  color: #ff6b6b;
+  font-size: 15px;
+  padding: 6px 20px;
+  animation: eventSlideIn 0.25s ease-out, eventPulseOnce 0.5s ease 0.3s, eventFadeOut 0.4s ease-in 3.5s forwards;
+}
+
+.event-item.event-weakness {
+  background: linear-gradient(135deg, rgba(125,223,127,0.2), rgba(0,0,0,0.7));
+  border-color: rgba(125,223,127,0.4);
+  color: #7ddf7f;
+  animation: eventSlideIn 0.25s ease-out, eventPulseRepeat 0.8s ease-in-out 0.3s 3, eventFadeOut 0.4s ease-in 3s forwards;
+}
+
+.event-item.event-gimmick {
+  background: linear-gradient(135deg, rgba(255,107,107,0.3), rgba(0,0,0,0.8));
+  border-color: rgba(255,107,107,0.6);
+  color: #ff6b6b;
+  font-size: 15px;
+  animation: eventSlideIn 0.25s ease-out, eventPulseRepeat 0.6s ease-in-out 0.3s 5, eventFadeOut 0.4s ease-in 3.5s forwards;
+}
+
+.event-item.event-debuff {
+  background: linear-gradient(135deg, rgba(255,154,154,0.15), rgba(0,0,0,0.7));
+  border-color: rgba(255,154,154,0.3);
+  color: #ff9a9a;
+}
+
+.event-item.event-passive {
+  background: linear-gradient(135deg, rgba(255,209,102,0.15), rgba(0,0,0,0.7));
+  border-color: rgba(255,209,102,0.3);
+  color: #ffd166;
+}
+
+.event-item.event-rhythm-perfect {
+  background: linear-gradient(135deg, rgba(140,216,255,0.2), rgba(0,0,0,0.7));
+  border-color: rgba(140,216,255,0.4);
+  color: #8cd8ff;
+}
+
+.event-item.event-absolute-rhythm {
+  background: linear-gradient(135deg, rgba(255,209,102,0.3), rgba(140,216,255,0.2), rgba(0,0,0,0.7));
+  border-color: rgba(255,209,102,0.5);
+  color: #ffd166;
+  font-size: 16px;
+  padding: 7px 22px;
+  animation: eventSlideIn 0.25s ease-out, absoluteRhythmGlow 0.5s ease-in-out 0.3s 3, eventFadeOut 0.4s ease-in 3.5s forwards;
+}
+
+.event-item.event-elite {
+  background: linear-gradient(135deg, rgba(255,165,0,0.2), rgba(0,0,0,0.7));
+  border-color: rgba(255,165,0,0.4);
+  color: #ffa500;
+}
+
+.event-item.event-boss {
+  background: linear-gradient(135deg, rgba(255,50,50,0.3), rgba(255,165,0,0.15), rgba(0,0,0,0.8));
+  border-color: rgba(255,50,50,0.5);
+  color: #ff6b6b;
+  font-size: 16px;
+  padding: 7px 22px;
+}
+
+@keyframes eventSlideIn {
+  0% { transform: translateY(-16px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes eventFadeOut {
+  0% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-8px); }
+}
+
+@keyframes eventPulseOnce {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}
+
+@keyframes eventPulseRepeat {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+@keyframes absoluteRhythmGlow {
+  0%, 100% { box-shadow: 0 0 12px rgba(255,209,102,0.3); }
+  50% { box-shadow: 0 0 24px rgba(255,209,102,0.6), 0 0 48px rgba(140,216,255,0.3); }
+}
+
+/* ===== 강화된 스킬 컷씬 ===== */
+.skill-cutscene-overlay.enhanced {
+  animation: cutsceneFadeInEnhanced 0.15s ease-out;
+}
+
+@keyframes cutsceneFadeInEnhanced {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.skill-cutscene-overlay.enhanced::before {
+  background: radial-gradient(ellipse at center, var(--skill-glow, rgba(79,195,247,0.4)) 0%, rgba(0,0,0,0.9) 65%);
+  animation: cutsceneBgPulseEnhanced 1s ease-out;
+}
+
+@keyframes cutsceneBgPulseEnhanced {
+  0% { opacity: 0; transform: scale(0.3); }
+  25% { opacity: 1; transform: scale(1.15); }
+  60% { transform: scale(0.95); }
+  100% { opacity: 0.8; transform: scale(1); }
+}
+
+.skill-cutscene-overlay.enhanced .skill-cutscene-cg {
+  max-height: 82%;
+  max-width: 65%;
+  animation: cutsceneCgZoomEnhanced 1s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes cutsceneCgZoomEnhanced {
+  0% { transform: scale(0.3) translateY(40px); opacity: 0; filter: brightness(4) saturate(0) drop-shadow(0 0 60px var(--skill-glow)); }
+  20% { opacity: 1; filter: brightness(2) saturate(0.5) drop-shadow(0 0 50px var(--skill-glow)); }
+  50% { transform: scale(1.05) translateY(-5px); filter: brightness(1.2) saturate(1) drop-shadow(0 0 40px var(--skill-glow)); }
+  100% { transform: scale(1) translateY(0); filter: brightness(1) drop-shadow(0 0 30px var(--skill-glow)); }
+}
+
+.skill-cutscene-overlay.enhanced .skill-cutscene-name {
+  font-size: 32px;
+  letter-spacing: 8px;
+  bottom: 15%;
+  animation: cutsceneNameEnhanced 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both;
+}
+
+@keyframes cutsceneNameEnhanced {
+  0% { transform: translateX(-50%) translateY(30px) scaleX(2); opacity: 0; letter-spacing: 30px; }
+  60% { letter-spacing: 4px; }
+  100% { transform: translateX(-50%) translateY(0) scaleX(1); opacity: 1; letter-spacing: 8px; }
+}
+
+/* 스킬 컷씬 오라 이펙트 */
+.skill-cutscene-aura {
+  position: absolute;
+  width: 200%;
+  height: 200%;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--skill-glow, rgba(79,195,247,0.3)) 0%, transparent 60%);
+  animation: auraExpand 1s ease-out;
+  pointer-events: none;
+}
+
+@keyframes auraExpand {
+  0% { transform: translate(-50%, -50%) scale(0); opacity: 0.8; }
+  50% { opacity: 0.5; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+}
+
+/* 스킬 컷씬 에너지 링 */
+.skill-cutscene-ring {
+  position: absolute;
+  width: 160px;
+  height: 160px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border: 3px solid var(--skill-color, #4fc3f7);
+  border-radius: 50%;
+  z-index: 3;
+  opacity: 0;
+  animation: ringExpand 0.8s ease-out 0.1s;
+}
+
+@keyframes ringExpand {
+  0% { opacity: 0.8; transform: translate(-50%, -50%) scale(0.3); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(3); border-width: 1px; }
+}
+
+/* 스킬 컷씬 속성 이펙트 (신수별) */
+.skill-cutscene-element {
+  position: absolute;
+  z-index: 4;
+  pointer-events: none;
+  font-size: 28px;
+  opacity: 0;
+  animation: elementFloat 1s ease-out both;
+  animation-delay: calc(var(--el-i, 0) * 0.1s + 0.2s);
+}
+
+@keyframes elementFloat {
+  0% { opacity: 0; transform: translate(0, 0) scale(0); }
+  30% { opacity: 1; transform: scale(1.3); }
+  100% { opacity: 0; transform: translate(var(--el-dx, 20px), var(--el-dy, -40px)) scale(0.5); }
+}
+
+/* 강화된 슬래시 이펙트 */
+.skill-cutscene-overlay.enhanced .skill-cutscene-slash {
+  height: 4px;
+  background: linear-gradient(90deg, transparent 5%, var(--skill-color, #4fc3f7) 30%, white 50%, var(--skill-color, #4fc3f7) 70%, transparent 95%);
+  box-shadow: 0 0 12px var(--skill-glow, rgba(79,195,247,0.4));
+  animation: cutsceneSlashEnhanced 0.4s ease-out both;
+  animation-delay: calc(var(--slash-i, 0) * 0.06s + 0.15s);
+}
+
+@keyframes cutsceneSlashEnhanced {
+  0% { opacity: 0; transform: rotate(var(--r, 15deg)) scaleX(0) translateX(-20%); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: rotate(var(--r, 15deg)) scaleX(1.2) translateX(15%); }
+}
+
+/* 스킬 이름 서브텍스트 (설명) */
+.skill-cutscene-subdesc {
+  position: absolute;
+  bottom: 10%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  font-size: 12px;
+  color: rgba(255,255,255,0.6);
+  letter-spacing: 3px;
+  white-space: nowrap;
+  animation: cutsceneSubDescFade 0.5s ease-out 0.5s both;
+}
+
+@keyframes cutsceneSubDescFade {
+  0% { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  100% { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* ===== 패시브 스킬 미니 컷씬 ===== */
+.passive-skill-flash {
+  position: absolute;
+  inset: 0;
+  z-index: 36;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: passiveFlashIn 0.12s ease-out;
+}
+
+.passive-skill-flash::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, var(--passive-glow, rgba(255,209,102,0.2)) 0%, transparent 60%);
+  animation: passiveBgPulse 0.6s ease-out;
+}
+
+@keyframes passiveFlashIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes passiveBgPulse {
+  0% { opacity: 0; transform: scale(0.5); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.2); }
+}
+
+.passive-skill-icon {
+  position: relative;
+  z-index: 2;
+  font-size: 48px;
+  animation: passiveIconPop 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  filter: drop-shadow(0 0 16px var(--passive-glow, rgba(255,209,102,0.5)));
+}
+
+@keyframes passiveIconPop {
+  0% { transform: scale(0) rotate(-15deg); opacity: 0; }
+  50% { transform: scale(1.3) rotate(5deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+.passive-skill-name {
+  position: absolute;
+  bottom: 35%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 3px;
+  color: var(--passive-color, #ffd166);
+  text-shadow: 0 0 16px var(--passive-glow, rgba(255,209,102,0.4)), 0 1px 6px rgba(0,0,0,0.7);
+  white-space: nowrap;
+  animation: passiveNameSlide 0.4s ease-out 0.1s both;
+}
+
+@keyframes passiveNameSlide {
+  0% { opacity: 0; transform: translateX(-50%) translateY(10px); }
+  100% { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.passive-skill-ring {
+  position: absolute;
+  width: 80px;
+  height: 80px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border: 2px solid var(--passive-color, #ffd166);
+  border-radius: 50%;
+  z-index: 1;
+  opacity: 0;
+  animation: passiveRingExpand 0.6s ease-out 0.05s;
+}
+
+@keyframes passiveRingExpand {
+  0% { opacity: 0.7; transform: translate(-50%, -50%) scale(0.5); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(2.5); border-width: 1px; }
+}
+
+/* ===== 강화된 전투 배너 ===== */
+.combat-banner.show {
+  font-size: 20px;
+}
+
+/* ===== 전투 로그 UX 개선 ===== */
+#combat-log, #tower-combat-log {
+  max-height: 80px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.15) transparent;
+  mask-image: linear-gradient(to bottom, transparent 0%, black 30%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 30%);
+}
+
+/* ===== 엘리트/보스 적 강조 ===== */
+.tower-enemy-elite #tower-enemy-info {
+  color: #ffa500;
+  text-shadow: 0 0 8px rgba(255,165,0,0.3);
+}
+
+.tower-enemy-boss #tower-enemy-info {
+  color: #ff6b6b;
+  text-shadow: 0 0 12px rgba(255,107,107,0.4);
+  font-weight: 900;
+  letter-spacing: 1px;
+}
+
+/* ===== 절대 리듬 시각 효과 ===== */
+.absolute-rhythm-active #tower-rhythm-meter {
+  box-shadow: 0 0 16px rgba(255,209,102,0.4), 0 0 32px rgba(140,216,255,0.2);
+  border-color: rgba(255,209,102,0.5);
+}
+
+.absolute-rhythm-active #tower-rhythm-text {
+  color: #ffd166 !important;
+  text-shadow: 0 0 12px rgba(255,209,102,0.4);
+}
+
+.absolute-rhythm-active #tower-tap-btn {
+  box-shadow: 0 0 12px rgba(255,209,102,0.3);
+  border-color: rgba(255,209,102,0.4);
+}
+
+/* ===== 전투 컨텍스트 바 (UX: 리듬/패링 중 1줄 상태 요약) ===== */
+.combat-context-bar {
+  position: relative;
+  z-index: 35;
+  text-align: center;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: rgba(255,255,255,0.7);
+  background: rgba(0,0,0,0.4);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  min-height: 20px;
+  transition: color 0.3s, background 0.3s;
+}
+.combat-context-bar:empty { display: none; }
+.combat-context-bar.ctx-danger {
+  color: #ff6b6b;
+  background: rgba(255,50,50,0.15);
+  animation: ctxPulse 0.6s ease infinite;
+}
+.combat-context-bar.ctx-parry {
+  color: #ffd166;
+  background: rgba(255,209,102,0.1);
+}
+.combat-context-bar.ctx-weakness {
+  color: #7ddf7f;
+  background: rgba(125,223,127,0.1);
+}
+.combat-context-bar.ctx-skill-ready {
+  color: #c8f0ff;
+  background: rgba(200,240,255,0.1);
+  animation: ctxPulse 1s ease infinite;
+}
+.combat-context-bar.ctx-idle {
+  color: rgba(255,255,255,0.5);
+}
+@keyframes ctxPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* ===== 데미지 숫자 크기 스케일링 ===== */
+.hit-vfx-dmg.dmg-small { font-size: 14px; }
+.hit-vfx-dmg.dmg-medium { font-size: 18px; }
+.hit-vfx-dmg.dmg-large { font-size: 22px; font-weight: 800; }
+.hit-vfx-dmg.dmg-huge { font-size: 28px; font-weight: 900; text-shadow: 0 0 8px rgba(255,50,50,0.5); }
+
+/* ===== 연계 공격 이벤트 스트립 ===== */
+.event-item.event-chain {
+  background: linear-gradient(135deg, rgba(255,107,107,0.25), rgba(255,165,0,0.15), rgba(0,0,0,0.7));
+  border-color: rgba(255,107,107,0.45);
+  color: #ff8f6b;
+  font-size: 15px;
+  padding: 6px 20px;
+  animation: eventSlideIn 0.25s ease-out, eventPulseRepeat 0.6s ease-in-out 0.3s 4, eventFadeOut 0.4s ease-in var(--event-duration, 2.5s) forwards;
+}
+
+/* ===== 스킬 사용 가능 이벤트 스트립 ===== */
+.event-item.event-skill-ready {
+  background: linear-gradient(135deg, rgba(200,240,255,0.2), rgba(255,209,102,0.1), rgba(0,0,0,0.7));
+  border-color: rgba(200,240,255,0.4);
+  color: #c8f0ff;
+  font-size: 15px;
+  padding: 6px 20px;
+  animation: eventSlideIn 0.25s ease-out, eventPulseRepeat 0.8s ease-in-out 0.3s 3, eventFadeOut 0.4s ease-in var(--event-duration, 2.5s) forwards;
+}
+

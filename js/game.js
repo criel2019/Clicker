@@ -48,6 +48,17 @@ const Game = {
 
     // 황룡 해금 체크
     this.checkHwangryongUnlock();
+
+    // 오프라인 보상 체크
+    this.checkOfflineReward();
+
+    // 탭 전환/닫기 시 저장 (오프라인 시간 정확도 향상)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') GameState.save();
+    });
+    window.addEventListener('beforeunload', () => {
+      GameState.save();
+    });
   },
 
   // 캐릭터 탭 (메인 화면)
@@ -368,6 +379,55 @@ const Game = {
       this.playSfx('flash');
       UI.showToast('황룡이 실체화되었다!');
     }
+  },
+
+  // 오프라인 보상 체크
+  checkOfflineReward() {
+    const now = Date.now();
+    const lastSave = GameState.lastSaveTime;
+    const offlineMs = now - lastSave;
+    const minOfflineMs = 5 * 60 * 1000; // 최소 5분
+
+    if (offlineMs < minOfflineMs) return;
+
+    const maxOfflineSec = 8 * 60 * 60; // 최대 8시간 캡
+    const offlineSec = Math.min(offlineMs / 1000, maxOfflineSec);
+    const expReward = Math.floor(offlineSec * GameState.getIdleRate());
+
+    if (expReward <= 0) return;
+
+    const beastId = GameState.currentBeast;
+    const beastName = BEAST_DATA[beastId]?.name || '신수';
+    const hours = Math.floor(offlineSec / 3600);
+    const minutes = Math.floor((offlineSec % 3600) / 60);
+    const timeStr = hours > 0 ? `${hours}시간 ${minutes}분` : `${minutes}분`;
+
+    GameState.addExp(beastId, expReward);
+    GameState.lastIdleCollect = now;
+    GameState.save();
+
+    this.showOfflineRewardPopup(timeStr, expReward, beastName);
+  },
+
+  // 오프라인 보상 팝업
+  showOfflineRewardPopup(timeStr, expReward, beastName) {
+    const popup = document.createElement('div');
+    popup.style.cssText = [
+      'position:fixed', 'top:50%', 'left:50%', 'transform:translate(-50%,-50%)',
+      'background:rgba(15,15,30,0.97)', 'border:1px solid rgba(255,255,255,0.15)',
+      'border-radius:16px', 'padding:28px 32px', 'z-index:9999',
+      'text-align:center', 'color:#fff', 'min-width:260px',
+      'box-shadow:0 8px 32px rgba(0,0,0,0.7)'
+    ].join(';');
+    popup.innerHTML = `
+      <div style="font-size:2rem;margin-bottom:8px">&#x1F319;</div>
+      <div style="font-size:1rem;color:#aaa;margin-bottom:6px">부재중 수익</div>
+      <div style="font-size:0.85rem;color:#888;margin-bottom:14px">${timeStr} 동안 자리를 비웠어요</div>
+      <div style="font-size:1.5rem;font-weight:bold;color:#ffe082;margin-bottom:10px">+${expReward.toLocaleString()} EXP</div>
+      <div style="font-size:0.85rem;color:#aaa;margin-bottom:20px">${beastName}에게 지급되었습니다</div>
+      <button onclick="this.parentElement.remove()" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);color:#fff;padding:8px 28px;border-radius:8px;cursor:pointer;font-size:0.95rem;">확인</button>
+    `;
+    document.body.appendChild(popup);
   },
 
   // 각성 시도
