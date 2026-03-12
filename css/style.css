@@ -4872,3 +4872,336 @@ body {
   animation: eventSlideIn 0.25s ease-out, eventPulseRepeat 0.8s ease-in-out 0.3s 3, eventFadeOut 0.4s ease-in var(--event-duration, 2.5s) forwards;
 }
 
+
+/* =============================================================
+   ★★★ 전투 UI 대폭 리디자인 — 리듬 게임 UX 최적화 ★★★
+   =============================================================
+   기존 스타일을 오버라이드하여 핵심(리듬 미터, HP, 버튼)만 남기고
+   불필요한 정보(로그, 보상, 가이드 텍스트 등)를 숨김.
+   ============================================================= */
+
+/* ───────────────────────────
+   1. 타워 전투: 불필요 요소 숨기기
+   ─────────────────────────── */
+#tower-combat-log,
+#tower-rhythm-guide,
+#tower-intent,
+#tower-enemy-portrait {
+  display: none !important;
+}
+
+/* 디버프: 배틀 위 플로팅으로 (공간 차지 X) */
+#tower-debuff-bar {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  z-index: 20;
+  min-height: 0;
+  padding: 0;
+}
+
+/* ───────────────────────────
+   2. 타워 전투: 레이아웃 재구성
+   ─────────────────────────── */
+#tower-battle {
+  gap: 4px !important;
+  padding: 10px 12px 12px !important;
+}
+
+/* 적 정보: 한 줄로 컴팩트하게 */
+#tower-enemy-info {
+  padding: 3px 10px !important;
+  font-size: 13px !important;
+  margin-bottom: 0 !important;
+  background: rgba(231, 76, 60, 0.1) !important;
+  border-color: rgba(231, 76, 60, 0.18) !important;
+}
+
+/* HP 바: 높이 줄이고 간격 최소화 */
+.tower-hp-wrap {
+  gap: 1px !important;
+}
+.tower-hp-bar {
+  height: 5px !important;
+}
+.tower-hp-label, .tower-hp-row {
+  font-size: 11px !important;
+}
+
+/* ───────────────────────────
+   3. ★ 리듬 미터: 핵심 요소 대형화 ★
+   ─────────────────────────── */
+.rhythm-meter {
+  position: relative !important;
+  z-index: 5 !important;
+  height: 44px !important;
+  margin: 8px 0 4px !important;
+  background: rgba(255,255,255,0.04);
+  border-radius: 22px;
+  border: 2px solid rgba(255,255,255,0.1);
+  overflow: hidden;
+  box-shadow: inset 0 2px 8px rgba(0,0,0,0.3), 0 0 20px rgba(0,0,0,0.2);
+}
+
+.rhythm-zone {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  border-radius: 22px;
+}
+
+.rhythm-zone.rhythm-good {
+  left: var(--good-start, 14%);
+  width: calc(var(--good-end, 62%) - var(--good-start, 14%));
+  background: linear-gradient(180deg, rgba(125,223,127,0.18) 0%, rgba(125,223,127,0.08) 100%);
+  border-left: 1px solid rgba(125,223,127,0.25);
+  border-right: 1px solid rgba(125,223,127,0.25);
+}
+
+.rhythm-zone.rhythm-perfect {
+  left: var(--perfect-start, 20%);
+  width: calc(var(--perfect-end, 47%) - var(--perfect-start, 20%));
+  background: linear-gradient(180deg, rgba(140,216,255,0.28) 0%, rgba(140,216,255,0.12) 100%);
+  border-left: 2px solid rgba(140,216,255,0.4);
+  border-right: 2px solid rgba(140,216,255,0.4);
+  box-shadow: inset 0 0 12px rgba(140,216,255,0.1);
+}
+
+.rhythm-cursor {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  width: 4px;
+  background: #fff;
+  border-radius: 2px;
+  box-shadow: 0 0 10px rgba(255,255,255,0.6), 0 0 20px rgba(255,255,255,0.3);
+  transition: none;
+  z-index: 2;
+}
+
+/* 리듬 미터 히트 이펙트 */
+.rhythm-meter.hit-perfect {
+  border-color: rgba(140,216,255,0.6);
+  box-shadow: inset 0 2px 8px rgba(0,0,0,0.3), 0 0 24px rgba(140,216,255,0.35);
+}
+.rhythm-meter.hit-perfect .rhythm-cursor {
+  background: #8cd8ff;
+  box-shadow: 0 0 14px rgba(140,216,255,0.8), 0 0 28px rgba(140,216,255,0.4);
+}
+.rhythm-meter.hit-good {
+  border-color: rgba(125,223,127,0.5);
+  box-shadow: inset 0 2px 8px rgba(0,0,0,0.3), 0 0 20px rgba(125,223,127,0.3);
+}
+.rhythm-meter.hit-good .rhythm-cursor {
+  background: #7ddf7f;
+  box-shadow: 0 0 12px rgba(125,223,127,0.7);
+}
+.rhythm-meter.hit-break {
+  border-color: rgba(255,107,107,0.5);
+  box-shadow: inset 0 2px 8px rgba(0,0,0,0.3), 0 0 16px rgba(255,107,107,0.3);
+}
+.rhythm-meter.hit-break .rhythm-cursor {
+  background: #ff6b6b;
+  box-shadow: 0 0 10px rgba(255,107,107,0.7);
+}
+
+/* ───────────────────────────
+   4. 콤보/집중 + 피드백: 컴팩트
+   ─────────────────────────── */
+#tower-rhythm-state {
+  font-size: 13px !important;
+  gap: 12px !important;
+  padding: 0 4px;
+}
+#tower-rhythm-text {
+  font-weight: 700;
+}
+#tower-focus-text {
+  font-weight: 700;
+}
+
+/* 집중도 바: 얇게 */
+#tower-focus-bar {
+  height: 5px !important;
+  margin: 0 !important;
+}
+
+/* ★ 피드백: 크고 눈에 띄게 ★ */
+#tower-feedback {
+  height: 28px !important;
+  font-size: 18px !important;
+  font-weight: 900 !important;
+  letter-spacing: 1.5px !important;
+  text-align: center;
+  margin: 2px 0;
+}
+
+/* 신수 대사: 작고 투명하게 */
+#tower-combat-dialogue {
+  font-size: 12px;
+  opacity: 0.7;
+  padding: 4px 8px !important;
+  max-height: 28px;
+  overflow: hidden;
+}
+
+/* 배너: 조금 더 크게 */
+#tower-battle .combat-banner {
+  font-size: 22px !important;
+}
+
+/* ───────────────────────────
+   5. 액션 버튼: 더 크고 명확하게
+   ─────────────────────────── */
+#tower-actions {
+  gap: 6px !important;
+  margin-top: 4px;
+}
+
+#tower-tap-btn {
+  padding: 16px !important;
+  font-size: 20px !important;
+  border-radius: 14px !important;
+  min-height: 52px;
+}
+
+#tower-parry-btn,
+#tower-skill-btn {
+  padding: 8px 14px !important;
+  font-size: 13px !important;
+  min-height: 52px;
+  border-radius: 14px !important;
+}
+
+/* 패링 ready 상태: 강한 펄스로 주목 끌기 */
+#tower-parry-btn.ready {
+  animation: parryReadyPulse 0.6s ease-in-out infinite alternate;
+}
+@keyframes parryReadyPulse {
+  from { box-shadow: 0 0 14px rgba(120,192,255,0.3); }
+  to { box-shadow: 0 0 28px rgba(120,192,255,0.6), inset 0 0 8px rgba(120,192,255,0.15); }
+}
+
+/* 스킬 ready 상태: 골든 글로우 */
+#tower-skill-btn.ready {
+  animation: skillReadyGlow 0.8s ease-in-out infinite alternate;
+}
+@keyframes skillReadyGlow {
+  from { box-shadow: 0 0 14px rgba(255,193,7,0.25); }
+  to { box-shadow: 0 0 24px rgba(255,193,7,0.5), inset 0 0 6px rgba(255,193,7,0.1); }
+}
+
+
+/* ═══════════════════════════════════
+   6. 스토리 전투 (#combat-ui) 동일 적용
+   ═══════════════════════════════════ */
+
+/* 불필요 요소 숨기기 */
+#combat-log,
+#combat-context-bar,
+#combat-reward-state,
+#combat-intent,
+#combat-enemy-portrait {
+  display: none !important;
+}
+
+/* 디버프 플로팅 */
+#combat-debuff-bar {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  z-index: 20;
+  min-height: 0;
+  padding: 0;
+}
+
+/* 레이아웃 조정 */
+#combat-ui {
+  gap: 4px !important;
+  padding: 10px 12px 12px !important;
+}
+
+#enemy-status {
+  padding: 3px 10px !important;
+  font-size: 13px !important;
+  margin-bottom: 0;
+}
+
+/* HP 바 컴팩트 */
+.combat-hp-wrap {
+  gap: 1px !important;
+}
+.combat-hp-bar {
+  height: 5px !important;
+}
+.combat-hp-label, .combat-hp-row {
+  font-size: 11px !important;
+}
+
+/* 콤보/기세 */
+#combat-momentum-state {
+  font-size: 13px !important;
+  gap: 12px !important;
+}
+
+/* 기세 바 얇게 */
+#combat-focus-bar {
+  height: 5px !important;
+}
+
+/* ★ 피드백: 크고 눈에 띄게 ★ */
+#combat-feedback {
+  height: 28px !important;
+  font-size: 18px !important;
+  font-weight: 900 !important;
+  letter-spacing: 1.5px !important;
+  text-align: center;
+  margin: 4px 0;
+}
+
+/* 신수 대사 컴팩트 */
+#combat-beast-dialogue {
+  font-size: 12px;
+  opacity: 0.7;
+  max-height: 28px;
+  overflow: hidden;
+}
+
+/* 배너 키우기 */
+#combat-ui .combat-banner {
+  font-size: 22px !important;
+}
+
+/* 액션 버튼 키우기 */
+#combat-actions {
+  gap: 6px !important;
+  margin-top: 4px;
+}
+
+#combat-tap-btn {
+  padding: 16px !important;
+  font-size: 20px !important;
+  border-radius: 14px !important;
+  min-height: 52px;
+}
+
+#combat-parry-btn,
+#combat-skill-btn {
+  padding: 8px 14px !important;
+  font-size: 13px !important;
+  min-height: 52px;
+  border-radius: 14px !important;
+}
+
+#combat-parry-btn.ready {
+  animation: parryReadyPulse 0.6s ease-in-out infinite alternate;
+}
+#combat-skill-btn.ready {
+  animation: skillReadyGlow 0.8s ease-in-out infinite alternate;
+}
+
+/* 이벤트 스트립: 최대 2개까지만 */
+.combat-event-strip .event-item:nth-child(n+3) {
+  display: none;
+}
+
